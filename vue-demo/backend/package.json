@@ -1,0 +1,19 @@
+{
+  "name": "music-player-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Music Player Backend - Express + SQLite + NeteaseCloudMusicApi",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.1",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "multer": "^2.2.0",
+    "mysql2": "^3.23.1",
+    "NeteaseCloudMusicApi": "^4.32.0",
+    "sql.js": "^1.14.1",
+    "web-music-api": "^1.0.0"
+  }
+}

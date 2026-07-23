@@ -1,0 +1,21 @@
+{
+  "name": "music-player-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Music Player Frontend - Vue 3 + Vite + Pinia",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "pinia": "^2.1.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vite": "^8.0.0"
+  }
+}

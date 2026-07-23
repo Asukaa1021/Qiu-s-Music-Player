@@ -1,0 +1,16 @@
+{
+  "name": "music-player",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Music Player — Vue 3 Frontend + Express Backend",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd vue-demo\\frontend && npm run dev",
+    "dev:backend": "cd vue-demo\\backend && npm start",
+    "build": "cd vue-demo\\frontend && npm run build",
+    "preview": "cd vue-demo\\frontend && npm run preview"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}

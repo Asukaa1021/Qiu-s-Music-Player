@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+*.local
+
+# 数据库文件（运行时生成）
+vue-demo/backend/data/melody.db
+vue-demo/backend/data/cookies.json
+
+# IDE
+.idea
+.trae
+
+# zip
+*.zip
