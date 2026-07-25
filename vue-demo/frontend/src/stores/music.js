@@ -39,6 +39,11 @@ export const useMusicStore = defineStore('music', () => {
   const currentTime = ref(0)
   const duration = ref(0)
   const volume = ref(parseFloat(localStorage.getItem(VOL_KEY)) || 0.7)
+  // 当前实际出声的播放器。用于页面外的常驻播放栏统一展示状态。
+  const activePlayback = ref('playlist') // playlist | fm
+  const fmIsPlaying = ref(false)
+  const fmCurrentTime = ref(0)
+  const fmDuration = ref(0)
   let playlistLoaded = false
 
   // 从数据库加载播放清单
@@ -503,12 +508,38 @@ export const useMusicStore = defineStore('music', () => {
     }
   }
   function setTrack(index) {
-    if (index >= 0 && index < playlist.value.length) currentIndex.value = index
+    if (index >= 0 && index < playlist.value.length) {
+      currentIndex.value = index
+    }
   }
   function next() { if (hasNext.value) currentIndex.value++ }
   function prev() { if (hasPrev.value) currentIndex.value-- }
-  function play() { isPlaying.value = true }
+
+  function playDirect(song) {
+    if (!song?._songId) return
+    const track = {
+      id: ++uid,
+      src: `/api/music/stream?id=${song._songId}`,
+      title: song.name || song.title || '未知歌曲',
+      artist: song.artist || '未知歌手',
+      cover: song.cover || '',
+      source: song.source || 'netease',
+      album: song.album || '',
+      _songId: song._songId,
+    }
+
+    // 单击歌曲时插入到当前曲目之前；尚未选中曲目时则追加到末尾。
+    const insertIndex = currentIndex.value >= 0 ? currentIndex.value : playlist.value.length
+    playlist.value.splice(insertIndex, 0, track)
+    currentIndex.value = insertIndex
+    play()
+  }
+  function play() {
+    activePlayback.value = 'playlist'
+    isPlaying.value = true
+  }
   function pause() { isPlaying.value = false }
+  function setActivePlayback(source) { activePlayback.value = source }
   function seek(time) { currentTime.value = time }
 
   // ==================== QR 登入 ====================
@@ -590,6 +621,7 @@ export const useMusicStore = defineStore('music', () => {
 
   return {
     playlist, currentIndex, isPlaying, currentTime, duration, volume,
+    activePlayback, fmIsPlaying, fmCurrentTime, fmDuration, setActivePlayback,
     currentTrack, hasPrev, hasNext,
     searchResults, searching, searchError, loadingTrackIds,
     searchKeyword, searchOffset, searchHasMore, SEARCH_LIMIT,
@@ -604,7 +636,7 @@ export const useMusicStore = defineStore('music', () => {
     loggedIn,
     qrCodeImg, qrLoginStatus, qrNickname, qrAvatarUrl,
     startLogin, cancelLogin, doLogout,
-    addTrack, addTracks, removeTrack, setTrack,
+    addTrack, addTracks, removeTrack, setTrack, playDirect,
     next, prev, play, pause, seek,
     sourceLabels,
   }

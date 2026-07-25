@@ -1,11 +1,17 @@
 <script setup>
-import { computed } from 'vue'
-import { RouterView } from 'vue-router'
+import { computed, KeepAlive } from 'vue'
+import { RouterView, useRoute } from 'vue-router'
 import { useMusicStore } from './stores/music'
 import LoginPanel from './components/LoginPanel.vue'
+import PersistentPlayer from './components/PersistentPlayer.vue'
+import ScreenSaver from './components/ScreenSaver.vue'
 
 const store = useMusicStore()
-const currentCover = computed(() => store.currentTrack?.cover || '')
+const route = useRoute()
+const currentCover = computed(() => {
+  if (store.activePlayback === 'fm') return store.fmTrack?.cover || ''
+  return store.currentTrack?.cover || ''
+})
 </script>
 
 <template>
@@ -13,10 +19,14 @@ const currentCover = computed(() => store.currentTrack?.cover || '')
 
   <RouterView v-slot="{ Component }">
     <transition name="page" mode="out-in">
-      <component :is="Component" />
+      <KeepAlive>
+        <component :is="Component" />
+      </KeepAlive>
     </transition>
   </RouterView>
 
+  <PersistentPlayer v-if="route.path === '/home'" />
+  <ScreenSaver />
   <LoginPanel />
 </template>
 

@@ -7,8 +7,17 @@ import * as musicApi from '../api/music'
 const store = useMusicStore()
 const router = useRouter()
 
-// ==================== 独立 Audio ====================
-const audioEl = ref(null)
+// ==================== 跨页面复用的 FM Audio ====================
+// 不放在模板中，避免离开私人漫游页面时浏览器销毁 <audio> 并中断播放。
+const fmSession = window.__melodyFmSession || (window.__melodyFmSession = {
+  audio: new Audio(),
+  audioCtx: null,
+  analyser: null,
+  source: null,
+})
+fmSession.audio.preload = 'auto'
+fmSession.audio.crossOrigin = 'anonymous'
+const audioEl = ref(fmSession.audio)
 const fmPlaying = ref(false)
 const fmCurrentTime = ref(0)
 const fmDuration = ref(0)
@@ -16,8 +25,9 @@ const fmAudioLoading = ref(false)
 let playSeq = 0
 
 // Web Audio 频谱
-let audioCtx = null
-let analyser = null
+let audioCtx = fmSession.audioCtx
+let analyser = fmSession.analyser
+let source = fmSession.source
 const freqData = ref(new Uint8Array(128))
 
 // ==================== 监听：主播放器 ↔ 漫游互斥 ====================
@@ -27,6 +37,17 @@ watch(() => store.isPlaying, (val) => {
     fmPlaying.value = false
   }
 })
+
+// 私人漫游使用独立的 Audio 元素；音量变更时需立即同步，
+// 不能只在开始播放时设置一次。
+watch(() => store.volume, (value) => {
+  if (audioEl.value) audioEl.value.volume = value
+})
+
+// 将独立 FM 音频的状态镜像到全局 store，供首页的常驻播放器使用。
+watch(fmPlaying, (value) => { store.fmIsPlaying = value }, { immediate: true })
+watch(fmCurrentTime, (value) => { store.fmCurrentTime = value }, { immediate: true })
+watch(fmDuration, (value) => { store.fmDuration = value }, { immediate: true })
 
 watch(() => store.loggedIn, (val) => {
   if (val && !store.fmTrack && !store.fmLoading) {
@@ -46,14 +67,17 @@ watch(() => store.fmTrack, (track) => {
 async function initAudioContext() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    fmSession.audioCtx = audioCtx
   }
   if (audioCtx.state === 'suspended') await audioCtx.resume()
-  if (!analyser && audioEl.value) {
-    const source = audioCtx.createMediaElementSource(audioEl.value)
+  if (!source && audioEl.value) {
+    source = audioCtx.createMediaElementSource(audioEl.value)
     analyser = audioCtx.createAnalyser()
     analyser.fftSize = 256
     source.connect(analyser)
     analyser.connect(audioCtx.destination)
+    fmSession.source = source
+    fmSession.analyser = analyser
   }
 }
 
@@ -108,6 +132,7 @@ async function loadAndPlay() {
     if (seq !== playSeq) return
 
     fmPlaying.value = true
+    store.setActivePlayback('fm')
     fmDuration.value = audioEl.value.duration || 0
   } catch {
     // 静默处理（包括浏览器 autoplay 策略）
@@ -239,6 +264,17 @@ function seekAt(pct) {
   }
 }
 
+function seekTo(time) {
+  if (audioEl.value && fmDuration.value > 0) {
+    audioEl.value.currentTime = Math.max(0, Math.min(time, fmDuration.value))
+    fmCurrentTime.value = audioEl.value.currentTime
+  }
+}
+
+function onPersistentToggle() { toggleFmPlay() }
+function onPersistentNext() { fmSkip() }
+function onPersistentSeek(event) { seekTo(event.detail) }
+
 function onPointerDown(e) {
   isDragging.value = true
   const pct = calcSeekPct(e.clientX)
@@ -363,7 +399,11 @@ function draw() {
 }
 
 onMounted(() => {
+  bindAudioEvents()
   draw()
+  window.addEventListener('melody:fm-toggle', onPersistentToggle)
+  window.addEventListener('melody:fm-next', onPersistentNext)
+  window.addEventListener('melody:fm-seek', onPersistentSeek)
   if (store.loggedIn && !store.fmTrack) {
     store.fetchPersonalFm()
   }
@@ -371,13 +411,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   cancelAnimationFrame(animId)
-  audioEl.value?.pause()
-  audioEl.value?.removeAttribute('src')
-  if (audioCtx) {
-    audioCtx.close()
-    audioCtx = null
-    analyser = null
-  }
+  // 音频会话与全局控制事件属于当前浏览会话，页面卸载时仍应保留。
 })
 
 // ==================== 歌词 ====================
@@ -558,8 +592,6 @@ const currentFmCover = computed(() => currentFmTrack.value?.cover || '')
           <span class="vol-num">{{ Math.round(store.volume * 100) }}</span>
         </div>
 
-        <!-- 音频元素 -->
-        <audio ref="audioEl" preload="auto" crossorigin="anonymous"></audio>
       </template>
 
       <!-- 空/错误状态 -->

@@ -19,6 +19,7 @@ function searchNow() {
 function onKeydown(e) { if (e.key === 'Enter') searchNow() }
 
 function onAddTrack(song) { store.addSearchResultToPlaylist(song) }
+function onPlayTrack(song) { store.playDirect(song) }
 function getTrackId(song) { return song.id || `netease_${song._songId}` }
 function isLoading(song) { return store.loadingTrackIds.has(getTrackId(song)) }
 function loadMore() { store.loadMoreResults() }
@@ -58,7 +59,7 @@ onMounted(() => { store.fetchRecommended() })
       <div v-if="store.loadingRecommended" class="status"><span class="spinner"></span>加载中...</div>
 
       <ul v-else-if="store.recommendedSongs.length > 0" class="results">
-        <li v-for="song in store.recommendedSongs" :key="getTrackId(song)" class="result-row">
+        <li v-for="song in store.recommendedSongs" :key="getTrackId(song)" class="result-row" @click="onPlayTrack(song)" title="播放此歌曲">
           <div class="result-cover">
             <img v-if="song.cover" :src="song.cover" alt="" loading="lazy" @error="e => e.target.remove()" />
             <svg v-else class="cover-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
@@ -68,7 +69,7 @@ onMounted(() => { store.fetchRecommended() })
             <p class="result-artist">{{ song.artist }}</p>
           </div>
           <span class="src-tag">网易云</span>
-          <button class="add-btn" :class="{ 'add-btn--busy': isLoading(song) }" :disabled="isLoading(song)" @click="onAddTrack(song)" aria-label="添加">
+          <button class="add-btn" :class="{ 'add-btn--busy': isLoading(song) }" :disabled="isLoading(song)" @click.stop="onAddTrack(song)" aria-label="添加到播放清单">
             <svg v-if="!isLoading(song)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span v-else class="mini-spinner"></span>
           </button>
@@ -78,7 +79,7 @@ onMounted(() => { store.fetchRecommended() })
 
     <!-- Search Results -->
     <ul v-if="store.searchResults.length > 0" class="results">
-      <li v-for="song in store.searchResults" :key="getTrackId(song)" class="result-row">
+      <li v-for="song in store.searchResults" :key="getTrackId(song)" class="result-row" @click="onPlayTrack(song)" title="播放此歌曲">
         <div class="result-cover">
           <img v-if="song.cover" :src="song.cover" alt="" loading="lazy" @error="e => e.target.remove()" />
           <svg v-else class="cover-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
@@ -88,7 +89,7 @@ onMounted(() => { store.fetchRecommended() })
           <p class="result-artist">{{ song.artist }}</p>
         </div>
         <span class="src-tag">网易云</span>
-        <button class="add-btn" :class="{ 'add-btn--busy': isLoading(song) }" :disabled="isLoading(song)" @click="onAddTrack(song)" aria-label="添加">
+        <button class="add-btn" :class="{ 'add-btn--busy': isLoading(song) }" :disabled="isLoading(song)" @click.stop="onAddTrack(song)" aria-label="添加到播放清单">
           <svg v-if="!isLoading(song)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span v-else class="mini-spinner"></span>
         </button>

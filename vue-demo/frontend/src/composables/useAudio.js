@@ -127,9 +127,8 @@ export function useAudio() {
     }
   })
 
-  // 监听切歌
-  watch(() => store.currentIndex, (newIdx, oldIdx) => {
-    const track = store.currentTrack
+  // 监听当前曲目（包括播放清单切歌及单击插队播放）
+  watch(() => store.currentTrack, (track, previousTrack) => {
     if (!track) {
       el.pause()
       el.src = ''
@@ -138,8 +137,7 @@ export function useAudio() {
       store.duration = 0
       return
     }
-    // 仅 index 真正改变时才重置并加载
-    if (newIdx !== oldIdx) {
+    if (track !== previousTrack) {
       store.currentTime = 0
       store.duration = 0
     }

@@ -282,7 +282,7 @@ async function addToPlaylist(song) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 var(--space-6) var(--space-6);
+  padding: 0 clamp(16px, 4vw, 48px) 132px;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -611,7 +611,44 @@ async function addToPlaylist(song) {
   font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5;
 }
 
-@media (max-width: 500px) {
-  .card-grid { grid-template-columns: 1fr; gap: 16px; }
+@media (max-width: 900px) {
+  .search-area { margin-top: 56px; margin-bottom: 32px; max-width: 500px; }
+  .card-grid { max-width: 560px; gap: 18px; }
+  .card-body { padding: 24px 20px 20px; }
+}
+
+@media (max-width: 600px) {
+  .home { padding-left: 16px; padding-right: 16px; padding-bottom: 112px; }
+  .topbar { right: 16px; }
+  .search-area { margin-top: 58px; margin-bottom: 26px; max-width: none; }
+  .search-wrap { height: 46px; padding: 0 14px; }
+  .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .home-card { border-radius: 20px; }
+  .card-body { min-height: 148px; padding: 18px 15px 16px; gap: 7px; }
+  .card-icon { width: 34px; height: 34px; border-radius: 10px; margin-bottom: 2px; }
+  .card-icon svg { width: 17px; height: 17px; }
+  .card-title { font-size: 17px; }
+  .card-sub { font-size: 11px; line-height: 1.4; }
+  .login-btn { padding: 5px 12px; }
+}
+
+@media (max-width: 380px) {
+  .home { padding-left: 12px; padding-right: 12px; }
+  .card-grid { gap: 9px; }
+  .card-body { min-height: 136px; padding: 15px 12px; }
+  .card-title { font-size: 16px; }
+  .card-sub { font-size: 10px; }
+}
+
+@media (max-height: 700px) and (min-width: 601px) {
+  .search-area { margin-top: 38px; margin-bottom: 24px; }
+  .card-grid { gap: 16px; }
+  .card-body { padding: 20px 20px 18px; }
+}
+
+@media (max-height: 620px) {
+  .search-area { margin-top: 30px; margin-bottom: 18px; }
+  .card-body { min-height: 0; padding: 15px; }
+  .card-sub { display: none; }
 }
 </style>

@@ -68,6 +68,10 @@ async function addToPlaylist(song) {
   showToast(song)
 }
 
+function playDirect(song) {
+  store.playDirect(song)
+}
+
 async function addAllDaily() {
   addAllAnimating.value = true
   setTimeout(() => { addAllAnimating.value = false }, 500)
@@ -171,7 +175,7 @@ const viewIcon = computed(() => ({
       <div class="view-scroll">
         <div v-if="store.loadingLiked" class="view-status"><span class="spinner"></span>加载中...</div>
         <ul v-else-if="store.likedSongs.length" class="track-list">
-          <li v-for="(song, i) in store.likedSongs" :key="song.id" class="track-row" :class="{ 'track-row--added': addedIds.has(song.id || `netease_${song._songId}`) }" @click="addToPlaylist(song)" title="添加到播放清单">
+          <li v-for="(song, i) in store.likedSongs" :key="song.id" class="track-row" :class="{ 'track-row--added': addedIds.has(song.id || `netease_${song._songId}`) }" @click="playDirect(song)" title="播放此歌曲">
             <span class="track-idx">{{ i + 1 }}</span>
             <div class="track-cover" v-if="song.cover"><img :src="song.cover" alt="" @error="e => e.target.remove()" /></div>
             <div class="track-cover track-cover--empty" v-else><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
@@ -200,7 +204,7 @@ const viewIcon = computed(() => ({
       <div class="view-scroll">
         <div v-if="store.loadingDaily" class="view-status"><span class="spinner"></span>加载中...</div>
         <ul v-else-if="store.dailySongs.length" class="track-list">
-          <li v-for="(song, i) in store.dailySongs" :key="song.id" class="track-row" :class="{ 'track-row--added': addedIds.has(song.id || `netease_${song._songId}`) }" @click="addToPlaylist(song)" title="添加到播放清单">
+          <li v-for="(song, i) in store.dailySongs" :key="song.id" class="track-row" :class="{ 'track-row--added': addedIds.has(song.id || `netease_${song._songId}`) }" @click="playDirect(song)" title="播放此歌曲">
             <span class="track-idx">{{ i + 1 }}</span>
             <div class="track-cover" v-if="song.cover"><img :src="song.cover" alt="" @error="e => e.target.remove()" /></div>
             <div class="track-cover track-cover--empty" v-else><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
@@ -228,7 +232,7 @@ const viewIcon = computed(() => ({
     </div>
 
     <!-- ==================== 私人漫游 ==================== -->
-    <div v-if="currentView === 'radio'" class="single-panel view-radio">
+    <div v-show="currentView === 'radio'" class="single-panel view-radio">
       <div class="view-header">
         <svg class="view-header-icon view-header-icon--gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="6" width="20" height="12" rx="2"/>
@@ -243,7 +247,7 @@ const viewIcon = computed(() => ({
     </div>
 
     <!-- ==================== 继续听 — 播放器 + 播放清单 ==================== -->
-    <div v-if="currentView === 'continue'" class="layout-continue">
+    <div v-show="currentView === 'continue'" class="layout-continue">
       <div class="main-col">
         <div class="player-wrap">
           <MusicPlayer />
