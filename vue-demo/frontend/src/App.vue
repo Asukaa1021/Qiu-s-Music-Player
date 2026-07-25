@@ -5,6 +5,7 @@ import { useMusicStore } from './stores/music'
 import LoginPanel from './components/LoginPanel.vue'
 import PersistentPlayer from './components/PersistentPlayer.vue'
 import ScreenSaver from './components/ScreenSaver.vue'
+import CommentStream from './components/CommentStream.vue'
 
 const store = useMusicStore()
 const route = useRoute()
@@ -26,6 +27,7 @@ const currentCover = computed(() => {
   </RouterView>
 
   <PersistentPlayer v-if="route.path === '/home'" />
+  <CommentStream v-if="route.path === '/player'" />
   <ScreenSaver />
   <LoginPanel />
 </template>

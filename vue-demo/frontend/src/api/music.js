@@ -51,6 +51,10 @@ export function getLyric(songId) {
   return get('/music/lyric', { id: songId })
 }
 
+export function getSongComments(songId) {
+  return get('/music/comments', { id: songId })
+}
+
 // 私人漫游
 export function getPersonalFm() {
   return get('/music/personal_fm')

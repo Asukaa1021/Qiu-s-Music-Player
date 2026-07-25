@@ -2,7 +2,7 @@ const { Router } = require('express')
 const https = require('https')
 const http = require('http')
 const { success, fail } = require('../utils/response')
-const { cookieStore, getSongUrl, searchMusic, getRecommended, getLikedSongs, getDailyRecommendations, getPersonalFm, likeTrack, getLyric } = require('../services/netease')
+const { cookieStore, getSongUrl, searchMusic, getRecommended, getLikedSongs, getDailyRecommendations, getPersonalFm, likeTrack, getLyric, getSongComments } = require('../services/netease')
 
 const router = Router()
 
@@ -179,6 +179,18 @@ router.get('/lyric', async (req, res) => {
     if (!id) return fail(res, 400, '缺少 id 参数')
     const data = await getLyric(id)
     success(res, { lrc: data.lrc?.lyric || '', tlrc: data.tlyric?.lyric || '' })
+  } catch (e) {
+    fail(res, 500, e.message)
+  }
+})
+
+// 歌曲评论（播放器内轮播展示）
+router.get('/comments', async (req, res) => {
+  try {
+    const { id } = req.query
+    if (!id) return fail(res, 400, '缺少 id 参数')
+    const data = await getSongComments(id, cookieStore.getCookie(req.ip))
+    success(res, data)
   } catch (e) {
     fail(res, 500, e.message)
   }

@@ -17,6 +17,7 @@ const {
   recommend_songs,
   personal_fm,
   like,
+  comment_music,
 } = require('NeteaseCloudMusicApi')
 
 const cookieStore = require('../utils/cookieStore')
@@ -71,6 +72,25 @@ async function searchMusic(keywords, limit = 10, offset = 0) {
 async function getLyric(id) {
   const result = await lyric({ id })
   return result.body
+}
+
+async function getSongComments(id, cookie = '') {
+  const result = await comment_music({ id, limit: 30, offset: 0, cookie })
+  const body = result.body
+  // 优先使用网易云标注的热门评论，并只保留千赞以上的高热度内容。
+  const sourceComments = body.hotComments?.length ? body.hotComments : (body.comments || [])
+  const comments = sourceComments
+    .map(item => ({
+      id: item.commentId,
+      content: item.content || '',
+      nickname: item.user?.nickname || '网易云用户',
+      avatar: item.user?.avatarUrl || '',
+      likedCount: item.likedCount || 0,
+    }))
+    .filter(item => item.content)
+    .filter(item => item.likedCount >= 1000)
+    .sort((a, b) => b.likedCount - a.likedCount)
+  return { comments }
 }
 
 async function getRecommended() {
@@ -176,5 +196,5 @@ module.exports = {
   qrKey, qrCreate, qrCheck,
   getLoginStatus, doLogout,
   getSongUrl, searchMusic, getRecommended, getLikedSongs, getDailyRecommendations, getPersonalFm, likeTrack,
-  getLyric,
+  getLyric, getSongComments,
 }
