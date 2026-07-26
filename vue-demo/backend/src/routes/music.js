@@ -3,8 +3,14 @@ const https = require('https')
 const http = require('http')
 const { success, fail } = require('../utils/response')
 const { cookieStore, getSongUrl, searchMusic, getRecommended, getLikedSongs, getDailyRecommendations, getPersonalFm, likeTrack, getLyric, getSongComments } = require('../services/netease')
+const { getQqDaily, getQqFm } = require('../services/qq')
 
 const router = Router()
+let multiApiPromise = null
+function getMultiApi() {
+  if (!multiApiPromise) multiApiPromise = import('web-music-api').then(({ createMusicApi }) => createMusicApi())
+  return multiApiPromise
+}
 
 // 搜索
 router.get('/search', async (req, res) => {
@@ -14,19 +20,37 @@ router.get('/search', async (req, res) => {
     const l = parseInt(limit)
     const o = parseInt(offset)
     const data = await searchMusic(keywords, l, o)
-    const songs = (data.result?.songs || []).map(item => ({
+    const neteaseSongs = (data.result?.songs || []).map(item => ({
       id: String(item.id),
       name: item.name || '',
       artist: (item.ar || []).map(a => a.name).join('/'),
       album: item.al?.name || '',
       cover: item.al?.picUrl || '',
+      source: 'netease',
     }))
-    const total = data.result?.songCount || 0
+    const multiApi = await getMultiApi()
+    const extraSongs = await multiApi.search(keywords, ['qq']).catch(() => [])
+    const songs = [...neteaseSongs, ...extraSongs.map(item => ({
+      id: String(item.id), name: item.name || '', artist: Array.isArray(item.artist) ? item.artist.join('/') : item.artist || '',
+      album: item.album || '', cover: item.cover || '', source: item.source,
+    }))]
+    const total = (data.result?.songCount || 0) + extraSongs.length
     const hasMore = o + l < total
     success(res, { songs, total, hasMore })
   } catch (e) {
     fail(res, 500, e.message)
   }
+})
+
+// QQ 公开音源代理，供统一的常驻播放器使用。
+router.get('/multi-stream', async (req, res) => {
+  try {
+    const { source, id } = req.query
+    if (source !== 'qq' || !id) return res.status(400).end('参数错误')
+    const api = await getMultiApi()
+    const url = await api.stream({ source, id: String(id), extra: source === 'qq' ? { songmid: String(id) } : { rid: String(id) } })
+    res.redirect(url)
+  } catch (error) { res.status(404).end('未找到可用音源') }
 })
 
 // 推荐新歌
@@ -199,6 +223,7 @@ router.get('/comments', async (req, res) => {
 // 每日推荐（需登录）
 router.get('/daily', async (req, res) => {
   try {
+    if (cookieStore.getLastPlatform(req.ip) === 'qq') return success(res, await getQqDaily(req))
     const cookie = cookieStore.getCookie(req.ip)
     if (!cookie) return fail(res, 401, '请先登录网易云账号')
     const data = await getDailyRecommendations(cookie)
@@ -211,6 +236,7 @@ router.get('/daily', async (req, res) => {
 // 私人漫游（需登录，每次返回 3 首）
 router.get('/personal_fm', async (req, res) => {
   try {
+    if (cookieStore.getLastPlatform(req.ip) === 'qq') return success(res, await getQqFm(req))
     const cookie = cookieStore.getCookie(req.ip)
     if (!cookie) return fail(res, 401, '请先登录网易云账号')
     const data = await getPersonalFm(cookie)

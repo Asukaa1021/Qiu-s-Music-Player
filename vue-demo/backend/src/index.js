@@ -2,15 +2,30 @@ require('dotenv').config()
 
 const express = require('express')
 const path = require('path')
+const { spawn } = require('child_process')
 const authRoutes = require('./routes/auth')
 const musicRoutes = require('./routes/music')
 const playlistRoutes = require('./routes/playlist')
 const likedRoutes = require('./routes/liked')
 const uploadRoutes = require('./routes/upload')
+const platformRoutes = require('./routes/platforms')
 const { init } = require('./utils/db')
 
 const app = express()
 const PORT = process.env.PORT || 3001
+
+function startQqBridge() {
+  const script = path.join(__dirname, 'services', 'qq_bridge.py')
+  const bundledPython = process.platform === 'win32'
+    ? path.join(__dirname, '..', 'vendor', 'qqmusic-venv', 'Scripts', 'python.exe')
+    : path.join(__dirname, '..', 'vendor', 'qqmusic-venv', 'bin', 'python')
+  const python = require('fs').existsSync(bundledPython) ? bundledPython : (process.platform === 'win32' ? null : 'python3')
+  if (!python) return console.warn('[QQ Bridge] 未找到本地 QQ Music 运行环境，QQ 登录不可用。')
+  const child = spawn(python, [script], { windowsHide: true, stdio: 'ignore' })
+  child.on('error', error => console.warn('[QQ Bridge] 启动失败:', error.message))
+  process.on('exit', () => child.kill())
+}
+startQqBridge()
 
 // 静态文件服务 — 让前端能访问上传的音频文件
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
@@ -32,6 +47,8 @@ app.use('/api/music', musicRoutes)
 app.use('/api/playlist', playlistRoutes)
 app.use('/api/liked', likedRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/platforms', platformRoutes)
+
 
 // 健康检查
 app.get('/api/health', (req, res) => {

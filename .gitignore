@@ -13,3 +13,9 @@ vue-demo/backend/data/cookies.json
 
 # zip
 *.zip
+vue-demo/backend/vendor/QQMusicApi-main/
+vue-demo/backend/vendor/QQMusicApi-main.zip
+vue-demo/backend/vendor/qqmusic-venv/
+vue-demo/backend/vendor/qqmusic-venv310/
+vue-demo/backend/vendor/python/
+__pycache__/

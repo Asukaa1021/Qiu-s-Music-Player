@@ -5,12 +5,14 @@ const { Router } = require('express')
 const { success, fail } = require('../utils/response')
 const { getDb, saveToFile } = require('../utils/db')
 const { cookieStore, getLikedSongs } = require('../services/netease')
+const { getQqLiked } = require('../services/qq')
 
 const router = Router()
 
 // 获取喜欢曲目（先返回缓存，后台更新）
 router.get('/', async (req, res) => {
   try {
+    if (cookieStore.getLastPlatform(req.ip) === 'qq') return success(res, await getQqLiked(req))
     const cookie = cookieStore.getCookie(req.ip)
     if (!cookie) return fail(res, 403, '未登录')
 
@@ -51,6 +53,7 @@ router.get('/', async (req, res) => {
 // 强制刷新
 router.post('/refresh', async (req, res) => {
   try {
+    if (cookieStore.getLastPlatform(req.ip) === 'qq') return success(res, await getQqLiked(req))
     const cookie = cookieStore.getCookie(req.ip)
     if (!cookie) return fail(res, 403, '未登录')
     const data = await getLikedSongs(cookie)

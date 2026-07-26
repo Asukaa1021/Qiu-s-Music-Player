@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMusicStore } from '../stores/music'
 
@@ -14,13 +14,30 @@ let debounceTimer = null
 let toastTimer = null
 // 记录刚添加的歌曲 ID，用于按钮动画
 const addedIds = ref(new Set())
+const activePlatformName = computed(() => store.activePlatform === 'qq' ? 'QQ 音乐' : store.activePlatform === 'netease' ? '网易云音乐' : '音乐库')
+const welcomeCopy = computed(() => store.platformLoggedIn ? `已连接 ${activePlatformName.value}，从一首好歌开始今天。` : '登录音乐账号，获取属于你的推荐与漫游。')
+const isQqPlatform = computed(() => store.activePlatform === 'qq')
+const likedCopy = computed(() => !store.platformLoggedIn ? '登录后同步你的喜欢' : `${store.likedTotal || 0} 首${isQqPlatform.value ? ' QQ 收藏歌曲' : '收藏歌曲'}`)
+const dailyCopy = computed(() => !store.platformLoggedIn ? '登录后获取今日推荐' : isQqPlatform.value ? 'QQ 免费新歌推荐' : '基于你的口味推荐')
+const radioCopy = computed(() => !store.platformLoggedIn ? '登录后开启智能推荐' : isQqPlatform.value ? 'QQ 猜你喜欢电台' : 'AI 推荐你喜欢的歌')
+const isFmPlaying = computed(() => store.activePlayback === 'fm' && !!store.fmTrack)
+const activeTrackTitle = computed(() => isFmPlaying.value ? store.fmTrack?.name : store.currentTrack?.title)
+const activeTrackHint = computed(() => isFmPlaying.value ? '私人漫游' : '正在聆听')
+const profileAvatar = computed(() => store.platformProfile.avatar || (store.activePlatform === 'netease' ? store.qrAvatarUrl : ''))
+const profileName = computed(() => store.platformProfile.nickname || (store.activePlatform === 'netease' ? store.qrNickname : '') || '已登录用户')
 
-onMounted(() => {
-  if (store.loggedIn && store.likedSongs.length === 0) {
+onMounted(async () => {
+  // HomeView 被 KeepAlive 缓存时也要重新同步账号资料，避免扫码完成后右上角仍显示旧状态。
+  await store.refreshPlatformAccounts()
+  if (store.platformLoggedIn && store.likedSongs.length === 0) {
     store.fetchLikedSongs()
   }
   document.addEventListener('click', onClickOutside)
 })
+
+watch(() => store.activePlatform, platform => {
+  if (platform) store.fetchLikedSongs()
+}, { immediate: true })
 
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside)
@@ -65,7 +82,7 @@ function doSearch() {
 }
 
 function onCardClick(view) {
-  if ((view === 'daily' || view === 'liked' || view === 'radio') && !store.loggedIn) {
+  if ((view === 'daily' || view === 'liked' || view === 'radio') && !store.platformLoggedIn) {
     store.showLoginPanel = true
     return
   }
@@ -98,6 +115,7 @@ async function addToPlaylist(song) {
 
 <template>
   <div class="home">
+    <div class="home-atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
     <!-- Toast -->
     <Transition name="toast-fade">
       <div v-if="toast.visible" class="toast">{{ toast.text }}</div>
@@ -107,20 +125,16 @@ async function addToPlaylist(song) {
     <div class="topbar">
       <button
         class="glass-btn login-btn"
-        :class="{ 'login-btn--logged': store.loggedIn }"
+        :class="{ 'login-btn--logged': store.platformLoggedIn }"
         @click="onLoginClick"
         aria-label="帐号"
-        title="网易云登入"
+        title="帐号设置"
       >
-        <template v-if="store.loggedIn && store.qrAvatarUrl">
-          <img
-            :src="store.qrAvatarUrl"
-            class="login-avatar"
-            alt=""
-            referrerpolicy="no-referrer"
-            @error="e => e.target.remove()"
-          />
-          <span class="login-nick">{{ store.qrNickname || '用户' }}</span>
+        <template v-if="store.platformLoggedIn">
+          <img v-if="profileAvatar" :src="profileAvatar" class="login-avatar" alt="" referrerpolicy="no-referrer" @error="e => e.target.remove()" />
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="login-nick">{{ profileName }}</span>
+          <span class="login-membership" :class="{ 'login-membership--active': store.platformProfile.vip }">{{ store.platformProfile.vip ? '会员已启用' : '基础账户' }}</span>
         </template>
         <template v-else>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -130,6 +144,16 @@ async function addToPlaylist(song) {
         </template>
       </button>
     </div>
+
+    <section class="home-hero">
+      <h1>让声音，<em>恰好抵达。</em></h1>
+      <p>{{ welcomeCopy }}</p>
+      <div class="hero-meta">
+        <span class="platform-pill" :class="{ 'platform-pill--connected': store.platformLoggedIn }"><i></i>{{ activePlatformName }}</span>
+        <span v-if="activeTrackTitle" class="now-hint">{{ activeTrackHint }} · {{ activeTrackTitle }}</span>
+        <span v-else class="now-hint">探索 · 收藏 · 漫游</span>
+      </div>
+    </section>
 
     <!-- ==================== Search Area ==================== -->
     <div ref="searchWrapRef" class="search-area">
@@ -220,7 +244,7 @@ async function addToPlaylist(song) {
           </div>
           <span class="card-label">Liked</span>
           <h3 class="card-title">我喜欢</h3>
-          <p class="card-sub">{{ store.loggedIn ? `${store.likedTotal || 0} 首收藏歌曲` : '登录后同步你的喜欢' }}</p>
+          <p class="card-sub">{{ likedCopy }}</p>
         </div>
       </div>
 
@@ -235,7 +259,7 @@ async function addToPlaylist(song) {
           </div>
           <span class="card-label">Daily</span>
           <h3 class="card-title">每日推荐</h3>
-          <p class="card-sub">{{ store.loggedIn ? '基于你的口味推荐' : '登录后获取今日推荐' }}</p>
+          <p class="card-sub">{{ dailyCopy }}</p>
         </div>
       </div>
 
@@ -252,7 +276,7 @@ async function addToPlaylist(song) {
           </div>
           <span class="card-label">Radio</span>
           <h3 class="card-title">私人漫游</h3>
-          <p class="card-sub">{{ store.loggedIn ? 'AI 推荐你喜欢的歌' : '登录后开启智能推荐' }}</p>
+          <p class="card-sub">{{ radioCopy }}</p>
         </div>
       </div>
 
@@ -267,7 +291,7 @@ async function addToPlaylist(song) {
           </div>
           <span class="card-label">Continue</span>
           <h3 class="card-title">继续听</h3>
-          <p class="card-sub">{{ store.currentTrack ? store.currentTrack.title : '播放器和播放清单' }}</p>
+          <p class="card-sub">{{ activeTrackTitle || '播放器和播放清单' }}</p>
         </div>
       </div>
     </section>
@@ -286,6 +310,18 @@ async function addToPlaylist(song) {
   overflow-y: auto;
   overflow-x: hidden;
 }
+.home-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.home-atmosphere i { position: absolute; display: block; border-radius: 50%; filter: blur(2px); opacity: .55; }
+.home-atmosphere i:nth-child(1) { width: 420px; height: 420px; top: -260px; left: -170px; background: radial-gradient(circle, rgba(0,245,212,.14), transparent 68%); }
+.home-atmosphere i:nth-child(2) { width: 360px; height: 360px; top: 25%; right: -230px; background: radial-gradient(circle, rgba(244,210,138,.11), transparent 70%); }
+.home-atmosphere i:nth-child(3) { width: 300px; height: 300px; bottom: -210px; left: 32%; background: radial-gradient(circle, rgba(80,125,255,.08), transparent 70%); }
+.home-hero { width: 100%; max-width: 760px; margin: clamp(38px, 7vh, 78px) auto 24px; padding: 0 10px; text-align: center; animation: hero-in .65s var(--ease-out) both; }
+.home-hero h1 { margin: 0 0 9px; color: var(--ink); font-size: clamp(28px, 4.3vw, 47px); line-height: 1.12; letter-spacing: -.055em; font-weight: 750; }
+.home-hero h1 em { font-style: normal; color: transparent; background: linear-gradient(100deg, var(--accent), #b7fff1 50%, var(--champagne)); -webkit-background-clip: text; background-clip: text; }
+.home-hero > p { color: var(--muted); font-size: 13px; letter-spacing: .01em; }
+.hero-meta { min-height: 28px; margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.platform-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; color: var(--muted); background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.06); border-radius: 999px; font-size: 10px; }
+.platform-pill i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }.platform-pill--connected { color: var(--ink-2); background: rgba(0,245,212,.06); border-color: rgba(0,245,212,.18); }.platform-pill--connected i { background: var(--accent); box-shadow: 0 0 9px var(--accent); }.now-hint { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }@keyframes hero-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ==================== Toast ==================== */
 .toast {
@@ -359,11 +395,14 @@ async function addToPlaylist(song) {
   max-width: 80px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.login-membership { position: relative; padding: 3px 7px 3px 14px; border: 1px solid rgba(126,133,142,.34); border-radius: 2px 9px 9px 2px; color: #9098a1; background: linear-gradient(90deg, rgba(126,133,142,.12), transparent); font: 650 8px var(--font-mono); letter-spacing: .04em; line-height: 1; white-space: nowrap; }
+.login-membership::before { content: ''; position: absolute; left: 6px; top: 50%; width: 4px; height: 4px; border-radius: 50%; transform: translateY(-50%); background: currentColor; }
+.login-membership--active { color: #d7f9ef; border-color: rgba(0,245,212,.45); background: linear-gradient(90deg, rgba(0,245,212,.2), rgba(0,245,212,.03)); box-shadow: 0 0 14px rgba(0,245,212,.12); }
 
 /* ==================== Search Area ==================== */
 .search-area {
-  margin-top: 72px;
-  margin-bottom: 48px;
+  margin-top: 10px;
+  margin-bottom: 32px;
   width: 100%;
   max-width: 520px;
 }
@@ -373,7 +412,7 @@ async function addToPlaylist(song) {
   background: var(--glass-bg);
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 9999px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   transition: border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
@@ -552,9 +591,9 @@ async function addToPlaylist(song) {
 .card-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 16px;
   width: 100%;
-  max-width: 600px;
+  max-width: 680px;
 }
 
 .home-card {
@@ -563,13 +602,13 @@ async function addToPlaylist(song) {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
   border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s var(--ease-out);
 }
 .home-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-5px) scale(1.008);
   border-color: rgba(0, 245, 212, 0.3);
   box-shadow: 0 8px 32px rgba(0, 245, 212, 0.06), 0 0 0 1px rgba(0, 245, 212, 0.1);
 }
@@ -581,7 +620,7 @@ async function addToPlaylist(song) {
 .card-accent--cyan { background: linear-gradient(90deg, var(--accent), rgba(0, 245, 212, 0.3)); }
 
 .card-body {
-  padding: 28px 24px 24px;
+  height: 100%; padding: 26px 24px 22px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -610,9 +649,12 @@ async function addToPlaylist(song) {
 .card-sub {
   font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5;
 }
+.home-card::after { content: ''; position: absolute; width: 150px; height: 150px; right: -68px; bottom: -82px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.08), transparent 68%); transition: transform .45s var(--ease-out), opacity .45s; opacity: .45; }
+.home-card:hover::after { transform: scale(1.45); opacity: .9; }
 
 @media (max-width: 900px) {
-  .search-area { margin-top: 56px; margin-bottom: 32px; max-width: 500px; }
+  .home-hero { margin-top: 50px; }
+  .search-area { margin-top: 8px; margin-bottom: 26px; max-width: 560px; }
   .card-grid { max-width: 560px; gap: 18px; }
   .card-body { padding: 24px 20px 20px; }
 }
@@ -620,9 +662,11 @@ async function addToPlaylist(song) {
 @media (max-width: 600px) {
   .home { padding-left: 16px; padding-right: 16px; padding-bottom: 112px; }
   .topbar { right: 16px; }
-  .search-area { margin-top: 58px; margin-bottom: 26px; max-width: none; }
+  .home-hero { margin-top: 48px; margin-bottom: 18px; }.home-hero h1 { font-size: 31px; }.home-hero > p { font-size: 12px; }
+  .search-area { margin-top: 8px; margin-bottom: 22px; max-width: none; }
   .search-wrap { height: 46px; padding: 0 14px; }
   .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .home-card { min-height: 152px; }
   .home-card { border-radius: 20px; }
   .card-body { min-height: 148px; padding: 18px 15px 16px; gap: 7px; }
   .card-icon { width: 34px; height: 34px; border-radius: 10px; margin-bottom: 2px; }
@@ -641,7 +685,8 @@ async function addToPlaylist(song) {
 }
 
 @media (max-height: 700px) and (min-width: 601px) {
-  .search-area { margin-top: 38px; margin-bottom: 24px; }
+  .home-hero { margin-top: 32px; margin-bottom: 12px; }.home-hero h1 { font-size: 31px; }
+  .search-area { margin-top: 6px; margin-bottom: 20px; }
   .card-grid { gap: 16px; }
   .card-body { padding: 20px 20px 18px; }
 }
@@ -652,3 +697,4 @@ async function addToPlaylist(song) {
   .card-sub { display: none; }
 }
 </style>
+  min-height: 184px;

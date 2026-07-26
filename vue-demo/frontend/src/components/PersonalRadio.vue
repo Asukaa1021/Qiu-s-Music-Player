@@ -49,7 +49,7 @@ watch(fmPlaying, (value) => { store.fmIsPlaying = value }, { immediate: true })
 watch(fmCurrentTime, (value) => { store.fmCurrentTime = value }, { immediate: true })
 watch(fmDuration, (value) => { store.fmDuration = value }, { immediate: true })
 
-watch(() => store.loggedIn, (val) => {
+watch([() => store.platformLoggedIn, () => store.activePlatform], ([val]) => {
   if (val && !store.fmTrack && !store.fmLoading) {
     store.fetchPersonalFm()
   }
@@ -58,7 +58,9 @@ watch(() => store.loggedIn, (val) => {
 // 漫游曲目切换 → 加载歌词 + 播放
 watch(() => store.fmTrack, (track) => {
   if (track) {
-    if (track._songId) store.fetchFmLyric(track._songId)
+    // QQ 音乐的歌词接口与网易云不同，避免用网易云 ID 请求造成错歌歌词。
+    if (track._songId && track.source !== 'qq') store.fetchFmLyric(track._songId)
+    else store.fmLyrics = []
     nextTick(() => loadAndPlay())
   }
 })
@@ -101,7 +103,9 @@ async function loadAndPlay() {
     // 快速切歌时，旧请求可能在这里被新请求追上，必须检查 playSeq 避免覆盖 src
     if (seq !== playSeq) return
 
-    const src = `/api/music/stream?id=${track._songId}`
+    const src = track.source === 'qq'
+      ? `/api/music/multi-stream?source=qq&id=${encodeURIComponent(track._songId)}`
+      : `/api/music/stream?id=${track._songId}`
     if (audioEl.value.src !== src) {
       audioEl.value.src = src
       audioEl.value.load()
@@ -215,6 +219,8 @@ function bindAudioEvents() {
   el.addEventListener('error', () => {
     fmPlaying.value = false
     fmAudioLoading.value = false
+    // QQ 的免费曲也可能因地区/临时版权失效，自动跳过以保持漫游连续。
+    if (store.fmTrack?.source === 'qq') fmSkip()
   })
 }
 
@@ -409,7 +415,7 @@ onMounted(() => {
   window.addEventListener('melody:fm-next', onPersistentNext)
   window.addEventListener('melody:fm-seek', onPersistentSeek)
   window.addEventListener('melody:fm-stop', onPersistentStop)
-  if (store.loggedIn && !store.fmTrack) {
+  if (store.platformLoggedIn && !store.fmTrack) {
     store.fetchPersonalFm()
   }
 })
@@ -450,7 +456,7 @@ function scrollToLyric(idx) {
 const volShow = ref(false)
 
 // ==================== Computed ====================
-const isLoggedIn = computed(() => store.loggedIn)
+const isLoggedIn = computed(() => store.platformLoggedIn)
 const currentFmTrack = computed(() => store.fmTrack)
 const currentFmCover = computed(() => currentFmTrack.value?.cover || '')
 </script>
@@ -464,7 +470,7 @@ const currentFmCover = computed(() => currentFmTrack.value?.cover || '')
         <circle cx="12" cy="12" r="3"/>
         <path d="M8 4v4"/><path d="M12 2v4"/><path d="M16 4v4"/>
       </svg>
-      <p class="login-hint-text">登录网易云账号后开启私人漫游</p>
+      <p class="login-hint-text">登录网易云或 QQ 音乐后开启私人漫游</p>
       <button class="login-hint-btn glass-btn" @click="goHome">前往首页登录</button>
     </div>
 
@@ -502,7 +508,7 @@ const currentFmCover = computed(() => currentFmTrack.value?.cover || '')
               <template v-if="store.fmLoading">
                 <span class="spinner-xs"></span> 换一批...
               </template>
-              <template v-else>网易云音乐 · 私人漫游</template>
+          <template v-else>{{ currentFmTrack.source === 'qq' ? 'QQ 音乐 · 猜你喜欢电台' : '网易云音乐 · 私人漫游' }}</template>
             </p>
           </div>
         </div>

@@ -28,7 +28,7 @@ function loadCurrentIndex() {
 }
 
 // ==================== Source Labels ====================
-export const sourceLabels = { netease: '網易雲', mock: 'Demo' }
+export const sourceLabels = { netease: '網易雲', qq: 'QQ 音樂', mock: 'Demo' }
 
 // ==================== Store ====================
 export const useMusicStore = defineStore('music', () => {
@@ -140,26 +140,28 @@ export const useMusicStore = defineStore('music', () => {
       !fmPrefetchSongs.value.length &&
       !fmPrefetching.value &&
       !fmLoading.value &&
-      loggedIn.value
+      platformLoggedIn.value
     ) {
       prefetchFm()
     }
   })
 
   async function prefetchFm() {
-    if (fmPrefetching.value || !loggedIn.value) return
+    if (fmPrefetching.value || !platformLoggedIn.value) return
     fmPrefetching.value = true
     try {
       const data = await musicApi.getPersonalFm()
-      const songs = (data.songs || []).map(item => ({
-        id: 'wy_' + item.id,
+      const songs = (data.songs || []).map(item => {
+        const source = item.source || 'netease'
+        return {
+        id: `${source === 'qq' ? 'qq' : 'wy'}_${item.id}`,
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source,
         cover: item.cover,
         _songId: item.id,
-      }))
+      }})
       fmPrefetchSongs.value = songs
     } catch {
       fmPrefetchSongs.value = []
@@ -169,20 +171,22 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   async function fetchPersonalFm() {
-    if (fmLoading.value || !loggedIn.value) return
+    if (fmLoading.value || !platformLoggedIn.value) return
     fmLoading.value = true
     fmError.value = ''
     try {
       const data = await musicApi.getPersonalFm()
-      const songs = (data.songs || []).map(item => ({
-        id: 'wy_' + item.id,
+      const songs = (data.songs || []).map(item => {
+        const source = item.source || 'netease'
+        return {
+        id: `${source === 'qq' ? 'qq' : 'wy'}_${item.id}`,
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source,
         cover: item.cover,
         _songId: item.id,
-      }))
+      }})
       if (songs.length) {
         fmSongs.value = songs
         fmCurrentIndex.value = 0
@@ -215,11 +219,43 @@ export const useMusicStore = defineStore('music', () => {
 
   // --- 登录状态 ---
   const loggedIn = ref(false)
+  const platformAccounts = ref([])
+  const platformLoggedIn = computed(() => loggedIn.value || platformAccounts.value.some(account => account.loggedIn))
+  const activePlatform = computed(() => platformAccounts.value.find(account => account.active)?.platform || (loggedIn.value ? 'netease' : ''))
+  const platformProfile = ref({ platform: '', nickname: '', avatar: '', vip: false })
   const qrCodeImg = ref('')
   const qrLoginStatus = ref('idle') // idle | loading | waiting | scanned | success | expired | error
   const qrNickname = ref(localStorage.getItem(NICK_KEY) || '')
   const qrAvatarUrl = ref(localStorage.getItem(AVATAR_KEY) || '')
   let qrPollTimer = null
+
+  async function refreshPlatformAccounts() {
+    try {
+      const previousPlatform = activePlatform.value
+      platformAccounts.value = (await authApi.getPlatformAccounts()).accounts || []
+      // QQ 登录会使后端退出网易云，同时移除浏览器中遗留的网易云 UI 状态。
+      if (!platformAccounts.value.some(account => account.platform === 'netease' && account.loggedIn) && loggedIn.value) {
+        loggedIn.value = false
+      }
+      const nextPlatform = activePlatform.value
+      if (previousPlatform && previousPlatform !== nextPlatform) {
+        platformProfile.value = { platform: nextPlatform, nickname: '', avatar: '', vip: false }
+      }
+      try { platformProfile.value = await authApi.getPlatformProfile() } catch { platformProfile.value = { platform: '', nickname: '', avatar: '', vip: false } }
+      if (previousPlatform && nextPlatform && previousPlatform !== nextPlatform) {
+        // 登录平台切换后，不能继续展示/播放上一个平台的推荐缓存。
+        likedSongs.value = []
+        likedTotal.value = 0
+        dailySongs.value = []
+        fmSongs.value = []
+        fmPrefetchSongs.value = []
+        fmCurrentIndex.value = 0
+        fmLyrics.value = []
+        window.dispatchEvent(new CustomEvent('melody:fm-stop'))
+      }
+    } catch { platformAccounts.value = [] }
+  }
+  refreshPlatformAccounts()
 
   // 恢复登录状态
   if (loadLogins().length > 0) {
@@ -263,7 +299,7 @@ export const useMusicStore = defineStore('music', () => {
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source: item.source || 'netease',
         cover: item.cover,
         _songId: item.id,
       }))
@@ -290,7 +326,7 @@ export const useMusicStore = defineStore('music', () => {
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source: item.source || 'netease',
         cover: item.cover,
         _songId: item.id,
       }))
@@ -314,7 +350,7 @@ export const useMusicStore = defineStore('music', () => {
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source: item.source || 'netease',
         cover: item.cover,
         _songId: item.id,
       }))
@@ -326,7 +362,7 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   async function fetchLikedSongs() {
-    if (loadingLiked.value || !loggedIn.value) return
+    if (loadingLiked.value || !platformLoggedIn.value) return
     loadingLiked.value = true
     likedError.value = ''
     try {
@@ -336,7 +372,7 @@ export const useMusicStore = defineStore('music', () => {
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source: item.source || 'netease',
         cover: item.cover,
         _songId: item.id,
       }))
@@ -350,7 +386,7 @@ export const useMusicStore = defineStore('music', () => {
   }
 
   async function fetchDailyRecommend() {
-    if (loadingDaily.value || !loggedIn.value) return
+    if (loadingDaily.value || !platformLoggedIn.value) return
     loadingDaily.value = true
     dailyError.value = ''
     try {
@@ -360,7 +396,7 @@ export const useMusicStore = defineStore('music', () => {
         name: item.name,
         artist: item.artist,
         album: item.album,
-        source: 'netease',
+        source: item.source || 'netease',
         cover: item.cover,
         _songId: item.id,
       }))
@@ -517,13 +553,14 @@ export const useMusicStore = defineStore('music', () => {
 
   function playDirect(song) {
     if (!song?._songId) return
+    const source = song.source || 'netease'
     const track = {
       id: ++uid,
-      src: `/api/music/stream?id=${song._songId}`,
+      src: source === 'netease' ? `/api/music/stream?id=${song._songId}` : `/api/music/multi-stream?source=${source}&id=${song._songId}`,
       title: song.name || song.title || '未知歌曲',
       artist: song.artist || '未知歌手',
       cover: song.cover || '',
-      source: song.source || 'netease',
+      source,
       album: song.album || '',
       _songId: song._songId,
     }
@@ -580,6 +617,7 @@ export const useMusicStore = defineStore('music', () => {
               // 重新登录时同步一次网易云到数据库，后续读库
               await musicApi.refreshLikedSongs()
               loggedIn.value = true
+              await refreshPlatformAccounts()
               qrLoginStatus.value = 'success'
               break
             case 800:
@@ -635,7 +673,7 @@ export const useMusicStore = defineStore('music', () => {
     lyrics, loadingLyric,
     fmLyrics, fmLoadingLyric, fetchFmLyric,
     showLoginPanel,
-    loggedIn,
+    loggedIn, platformAccounts, platformLoggedIn, activePlatform, platformProfile, refreshPlatformAccounts,
     qrCodeImg, qrLoginStatus, qrNickname, qrAvatarUrl,
     startLogin, cancelLogin, doLogout,
     addTrack, addTracks, removeTrack, setTrack, playDirect,

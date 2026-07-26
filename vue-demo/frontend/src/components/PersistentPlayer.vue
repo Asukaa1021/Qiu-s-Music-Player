@@ -13,6 +13,7 @@ const title = computed(() => isFm.value ? track.value?.name : track.value?.title
 const currentTime = computed(() => isFm.value ? store.fmCurrentTime : store.currentTime)
 const duration = computed(() => isFm.value ? store.fmDuration : store.duration)
 const playing = computed(() => isFm.value ? store.fmIsPlaying : store.isPlaying)
+const playbackLabel = computed(() => isFm.value ? (track.value?.source === 'qq' ? 'QQ 猜你喜欢' : '私人漫游') : '播放清单')
 const lyrics = computed(() => isFm.value ? store.fmLyrics : store.lyrics)
 const currentLyric = computed(() => {
   let line = null
@@ -60,7 +61,7 @@ function openPlayer() {
       <div class="mini-main">
         <button class="mini-info" @click="openPlayer">
           <span class="mini-title">{{ title || '未知歌曲' }}</span>
-          <span class="mini-artist">{{ track.artist || '未知歌手' }} · {{ isFm ? '私人漫游' : '继续听' }}</span>
+          <span class="mini-artist">{{ track.artist || '未知歌手' }} · {{ playbackLabel }}</span>
         </button>
         <div class="mini-lyric" :class="{ muted: !currentLyric }">
           {{ currentLyric?.text || '享受此刻的旋律' }}

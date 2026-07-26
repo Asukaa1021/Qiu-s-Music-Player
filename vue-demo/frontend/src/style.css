@@ -117,6 +117,13 @@ html, body {
   color: var(--ink);
 }
 
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(0, 245, 212, .72);
+  outline-offset: 3px;
+}
+
 /* ==================== Album Background ==================== */
 #album-bg {
   position: fixed;

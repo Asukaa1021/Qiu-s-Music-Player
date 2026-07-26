@@ -33,9 +33,10 @@ function showSummaryToast(count) {
 }
 
 // 根据 view 加载数据
-watch(currentView, (view) => {
-  if (view === 'liked' && store.loggedIn) store.fetchLikedSongs()
-  if (view === 'daily' && store.loggedIn) store.fetchDailyRecommend()
+watch([currentView, () => store.platformLoggedIn, () => store.activePlatform], ([view, isLoggedIn]) => {
+  if (!isLoggedIn) return
+  if (view === 'liked') store.fetchLikedSongs()
+  if (view === 'daily') store.fetchDailyRecommend()
 }, { immediate: true })
 
 // 处理 ?q= 搜索参数
@@ -223,7 +224,7 @@ const viewIcon = computed(() => ({
           </li>
         </ul>
         <div v-else-if="store.dailyError" class="view-status view-status--error">{{ store.dailyError }}</div>
-        <div v-else-if="!store.loggedIn" class="view-status">请先登录网易云账号</div>
+        <div v-else-if="!store.platformLoggedIn" class="view-status">请先登录音乐账号</div>
         <div v-else class="view-status">暂无推荐数据</div>
       </div>
     </div>

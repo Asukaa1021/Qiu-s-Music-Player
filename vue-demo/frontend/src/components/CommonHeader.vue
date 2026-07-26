@@ -1,7 +1,10 @@
 <script setup>
+import { computed } from 'vue'
 import { useMusicStore } from '../stores/music'
 
 const store = useMusicStore()
+const profileAvatar = computed(() => store.platformProfile.avatar || (store.activePlatform === 'netease' ? store.qrAvatarUrl : ''))
+const profileName = computed(() => store.platformProfile.nickname || (store.activePlatform === 'netease' ? store.qrNickname : '') || '已登录用户')
 </script>
 
 <template>
@@ -28,15 +31,15 @@ const store = useMusicStore()
 
       <button
         class="nav-chip nav-chip--user"
-        :class="{ 'nav-chip--logged': store.loggedIn }"
+        :class="{ 'nav-chip--logged': store.platformLoggedIn }"
         @click="store.showLoginPanel = true"
         aria-label="帐号设定"
-        title="网易云登入"
+        title="帐号设置"
       >
         <!-- 已登入：显示头像 -->
         <img
-          v-if="store.loggedIn && store.qrAvatarUrl"
-          :src="store.qrAvatarUrl"
+          v-if="store.platformLoggedIn && profileAvatar"
+          :src="profileAvatar"
           class="user-avatar"
           alt=""
           referrerpolicy="no-referrer"
@@ -46,7 +49,8 @@ const store = useMusicStore()
         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         </svg>
-        <span class="user-name" v-if="store.loggedIn && store.qrNickname">{{ store.qrNickname }}</span>
+        <span class="user-name" v-if="store.platformLoggedIn">{{ profileName }}</span>
+        <span class="membership-state" :class="{ 'membership-state--active': store.platformProfile.vip }" v-if="store.platformLoggedIn">{{ store.platformProfile.vip ? '会员已启用' : '基础账户' }}</span>
       </button>
     </nav>
   </header>
@@ -164,4 +168,7 @@ const store = useMusicStore()
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.membership-state { position: relative; padding: 3px 7px 3px 14px; border: 1px solid rgba(126,133,142,.34); border-radius: 2px 9px 9px 2px; color: #9098a1; background: linear-gradient(90deg, rgba(126,133,142,.12), transparent); font: 650 8px var(--font-mono); letter-spacing: .04em; line-height: 1; }
+.membership-state::before { content: ''; position: absolute; left: 6px; top: 50%; width: 4px; height: 4px; border-radius: 50%; transform: translateY(-50%); background: currentColor; }
+.membership-state--active { color: #d7f9ef; border-color: rgba(0,245,212,.45); background: linear-gradient(90deg, rgba(0,245,212,.2), rgba(0,245,212,.03)); box-shadow: 0 0 14px rgba(0,245,212,.12); }
 </style>

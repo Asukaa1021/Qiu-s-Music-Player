@@ -1,10 +1,41 @@
 <script setup>
-import { watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useMusicStore } from '../stores/music'
+import * as authApi from '../api/auth'
 
 const store = useMusicStore()
+const selectedPlatform = ref('netease')
+const accounts = ref([])
+const qqQr = ref(null)
+const qqStatus = ref('idle')
+let qqTimer = null
 
-watch(() => store.showLoginPanel, (val) => { if (!val) store.cancelLogin() })
+async function refreshAccounts() {
+  try { accounts.value = (await authApi.getPlatformAccounts()).accounts || []; await store.refreshPlatformAccounts() } catch { accounts.value = [] }
+}
+function account(platform) { return accounts.value.find(item => item.platform === platform) }
+async function startQqLogin() {
+  qqStatus.value = 'loading'
+  try {
+    qqQr.value = await authApi.getQqQr()
+    qqStatus.value = 'waiting'
+    clearInterval(qqTimer)
+    qqTimer = setInterval(async () => {
+      try {
+        const result = await authApi.checkQqQr({ sessionId: qqQr.value.sessionId })
+        if (result.loggedIn) { clearInterval(qqTimer); qqTimer = null; qqStatus.value = 'success'; await refreshAccounts() }
+        else if (result.status === 'timeout' || result.status === 'refuse') { clearInterval(qqTimer); qqTimer = null; qqStatus.value = 'expired' }
+      } catch { /* 网络波动时继续轮询 */ }
+    }, 2500)
+  } catch { qqStatus.value = 'error' }
+}
+async function activate(platform) { await authApi.setActivePlatform(platform); await refreshAccounts() }
+async function logoutAccount(platform) { await authApi.logoutPlatform(platform); await refreshAccounts() }
+
+onMounted(refreshAccounts)
+onBeforeUnmount(() => clearInterval(qqTimer))
+
+watch(() => store.showLoginPanel, (val) => { if (!val) { store.cancelLogin(); clearInterval(qqTimer) } else refreshAccounts() })
 </script>
 
 <template>
@@ -21,6 +52,23 @@ watch(() => store.showLoginPanel, (val) => { if (!val) store.cancelLogin() })
             <button class="close-btn" @click="store.showLoginPanel = false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
 
+          <div class="platform-tabs">
+            <button v-for="item in [{ id: 'netease', name: '网易云' }, { id: 'qq', name: 'QQ 音乐' }]" :key="item.id" :class="{ active: selectedPlatform === item.id }" @click="selectedPlatform = item.id">
+              {{ item.name }}<i v-if="account(item.id)?.loggedIn" />
+            </button>
+          </div>
+
+          <template v-if="selectedPlatform === 'qq'">
+            <div v-if="account('qq')?.loggedIn" class="logged-in">
+              <div class="check-ring">✓</div><p class="logged-label">已登录 QQ 音乐</p>
+              <button v-if="!account('qq')?.active" class="btn-primary" @click="activate('qq')">设为推荐平台</button>
+              <button class="btn-text" @click="logoutAccount('qq')">退出 QQ 音乐</button>
+            </div>
+            <div v-else-if="qqStatus === 'waiting'" class="qr-section"><div class="qr-wrap"><img :src="qqQr?.image" alt="QQ 音乐登录二维码" class="qr-img" /></div><p class="stat-text">请使用 QQ 音乐 App 扫码确认</p><button class="btn-text" @click="startQqLogin">重新生成</button></div>
+            <div v-else class="center"><p class="desc">使用 QQ 音乐 App 扫码登录。登录后可作为“每日推荐”和私人漫游的当前平台。</p><button class="btn-primary" @click="startQqLogin">{{ qqStatus === 'loading' ? '正在生成…' : qqStatus === 'expired' ? '二维码已过期，重新生成' : 'QQ 音乐扫码登录' }}</button></div>
+          </template>
+
+          <template v-else>
           <!-- Logged In -->
           <div v-if="store.loggedIn" class="logged-in">
             <div class="check-ring">
@@ -79,6 +127,7 @@ watch(() => store.showLoginPanel, (val) => { if (!val) store.cancelLogin() })
               </div>
             </template>
           </template>
+          </template>
         </div>
       </div>
     </transition>
@@ -121,6 +170,10 @@ watch(() => store.showLoginPanel, (val) => { if (!val) store.cancelLogin() })
 .close-btn:hover { border-color: var(--hair-3); color: var(--ink-2); background: var(--hair-2); }
 
 .desc { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: var(--space-4); }
+.platform-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 4px; margin: -4px 0 var(--space-4); border-radius: var(--radius-md); background: var(--hair); }
+.platform-tabs button { position: relative; border: 0; border-radius: 7px; padding: 7px 3px; color: var(--muted); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.platform-tabs button.active { color: var(--accent); background: rgba(0,245,212,.09); }
+.platform-tabs i { position: absolute; top: 6px; right: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 
 /* Buttons */
 .btn-primary {
