@@ -274,6 +274,10 @@ function seekTo(time) {
 function onPersistentToggle() { toggleFmPlay() }
 function onPersistentNext() { fmSkip() }
 function onPersistentSeek(event) { seekTo(event.detail) }
+function onPersistentStop() {
+  audioEl.value?.pause()
+  fmPlaying.value = false
+}
 
 function onPointerDown(e) {
   isDragging.value = true
@@ -404,6 +408,7 @@ onMounted(() => {
   window.addEventListener('melody:fm-toggle', onPersistentToggle)
   window.addEventListener('melody:fm-next', onPersistentNext)
   window.addEventListener('melody:fm-seek', onPersistentSeek)
+  window.addEventListener('melody:fm-stop', onPersistentStop)
   if (store.loggedIn && !store.fmTrack) {
     store.fetchPersonalFm()
   }

@@ -6,6 +6,7 @@ import LoginPanel from './components/LoginPanel.vue'
 import PersistentPlayer from './components/PersistentPlayer.vue'
 import ScreenSaver from './components/ScreenSaver.vue'
 import CommentStream from './components/CommentStream.vue'
+import TrackTransition from './components/TrackTransition.vue'
 
 const store = useMusicStore()
 const route = useRoute()
@@ -28,6 +29,7 @@ const currentCover = computed(() => {
 
   <PersistentPlayer v-if="route.path === '/home'" />
   <CommentStream v-if="route.path === '/player'" />
+  <TrackTransition />
   <ScreenSaver />
   <LoginPanel />
 </template>

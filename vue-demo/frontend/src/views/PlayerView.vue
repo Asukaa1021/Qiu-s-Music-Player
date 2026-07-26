@@ -14,6 +14,7 @@ const currentView = computed(() => route.query.view || 'continue')
 const toast = ref({ visible: false, text: '' })
 const addedIds = ref(new Set())
 const addAllAnimating = ref(false)
+const dailyFlippingId = ref('')
 let toastTimer = null
 
 onUnmounted(() => { clearTimeout(toastTimer) })
@@ -70,6 +71,15 @@ async function addToPlaylist(song) {
 
 function playDirect(song) {
   store.playDirect(song)
+}
+
+function playDailySong(song) {
+  const id = song.id || `netease_${song._songId}`
+  dailyFlippingId.value = id
+  store.playDirect(song)
+  setTimeout(() => {
+    if (dailyFlippingId.value === id) dailyFlippingId.value = ''
+  }, 700)
 }
 
 async function addAllDaily() {
@@ -204,7 +214,7 @@ const viewIcon = computed(() => ({
       <div class="view-scroll">
         <div v-if="store.loadingDaily" class="view-status"><span class="spinner"></span>加载中...</div>
         <ul v-else-if="store.dailySongs.length" class="track-list">
-          <li v-for="(song, i) in store.dailySongs" :key="song.id" class="track-row" :class="{ 'track-row--added': addedIds.has(song.id || `netease_${song._songId}`) }" @click="playDirect(song)" title="播放此歌曲">
+          <li v-for="(song, i) in store.dailySongs" :key="song.id" class="track-row track-row--daily-page" :class="{ 'track-row--added': addedIds.has(song.id || `netease_${song._songId}`), 'track-row--page-flip': dailyFlippingId === (song.id || `netease_${song._songId}`) }" :style="{ '--deck-order': Math.min(i, 8) }" @click="playDailySong(song)" title="播放此歌曲">
             <span class="track-idx">{{ i + 1 }}</span>
             <div class="track-cover" v-if="song.cover"><img :src="song.cover" alt="" @error="e => e.target.remove()" /></div>
             <div class="track-cover track-cover--empty" v-else><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
@@ -492,6 +502,58 @@ const viewIcon = computed(() => ({
   border-color: rgba(0, 245, 212, 0.45) !important;
   background: rgba(0, 245, 212, 0.12) !important;
   color: var(--accent) !important;
+}
+
+/* ==================== Daily recommendation page deck ==================== */
+.view-daily .track-list { perspective: 1100px; padding: 5px 7px 12px; }
+.track-row--daily-page {
+  position: relative;
+  isolation: isolate;
+  margin-bottom: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: linear-gradient(105deg, rgba(255,255,255,0.055), rgba(255,255,255,0.014));
+  box-shadow: 4px 5px 0 rgba(244, 210, 138, 0.035), 8px 10px 0 rgba(0, 0, 0, 0.12);
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  animation: daily-page-arrive 560ms var(--ease-out) both;
+  animation-delay: calc(var(--deck-order) * 55ms);
+}
+.track-row--daily-page::before,
+.track-row--daily-page::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.track-row--daily-page::before {
+  inset: 4px -5px -4px 5px;
+  border: 1px solid rgba(244, 210, 138, 0.09);
+  background: rgba(244, 210, 138, 0.025);
+  transform: translateZ(-1px);
+}
+.track-row--daily-page::after {
+  inset: 8px -9px -8px 9px;
+  border: 1px solid rgba(255,255,255,0.035);
+  background: rgba(0,0,0,0.09);
+  transform: translateZ(-2px);
+}
+.track-row--daily-page:hover {
+  background: linear-gradient(105deg, rgba(244,210,138,0.11), rgba(255,255,255,0.025));
+  border-color: rgba(244, 210, 138, 0.24);
+  box-shadow: 9px 13px 26px rgba(0,0,0,0.22), 0 0 20px rgba(244,210,138,0.07);
+  transform: perspective(1100px) rotateY(-7deg) rotateX(1deg) translate3d(7px, -2px, 18px);
+}
+.track-row--daily-page.track-row--page-flip { animation: daily-page-flip 700ms var(--ease-out) both; }
+@keyframes daily-page-arrive {
+  from { opacity: 0; transform: rotateY(20deg) translateX(32px) translateZ(-40px); }
+  to { opacity: 1; transform: rotateY(0) translateX(0) translateZ(0); }
+}
+@keyframes daily-page-flip {
+  0% { transform: perspective(1100px) rotateY(0) translateZ(0); }
+  36% { transform: perspective(1100px) rotateY(-31deg) translateX(12px) translateZ(42px); }
+  66% { transform: perspective(1100px) rotateY(13deg) translateX(5px) translateZ(22px); }
+  100% { transform: perspective(1100px) rotateY(0) translateZ(0); }
 }
 @keyframes tr-bounce {
   0% { transform: scale(1); }

@@ -536,6 +536,8 @@ export const useMusicStore = defineStore('music', () => {
   }
   function play() {
     activePlayback.value = 'playlist'
+    // 私人漫游的 Audio 会话可跨页面保留；启动主播放前显式停止它，避免双音源同时播放。
+    window.dispatchEvent(new CustomEvent('melody:fm-stop'))
     isPlaying.value = true
   }
   function pause() { isPlaying.value = false }
