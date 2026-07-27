@@ -5,6 +5,7 @@ const {
   qrKey, qrCreate, qrCheck,
   getLoginStatus, doLogout,
 } = require('../services/netease')
+const { clearLikedCache, refreshNeteaseLikedInBackground } = require('../services/likedCache')
 
 const router = Router()
 
@@ -42,6 +43,10 @@ router.get('/qr/check', async (req, res) => {
     if (data.nickname) result.nickname = data.nickname
     if (data.avatarUrl) result.avatarUrl = data.avatarUrl
     if (data.cookie) result.cookie = data.cookie
+    if (data.code === 803 && data.cookie) {
+      clearLikedCache(ip)
+      refreshNeteaseLikedInBackground(ip, data.cookie)
+    }
     success(res, result)
   } catch (e) {
     fail(res, 500, e.message)

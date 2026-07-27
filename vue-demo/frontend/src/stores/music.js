@@ -36,6 +36,7 @@ export const useMusicStore = defineStore('music', () => {
   const playlist = ref([])
   const currentIndex = ref(loadCurrentIndex())
   const isPlaying = ref(false)
+  const audioLoading = ref(false)
   const currentTime = ref(0)
   const duration = ref(0)
   const volume = ref(parseFloat(localStorage.getItem(VOL_KEY)) || 0.7)
@@ -111,8 +112,12 @@ export const useMusicStore = defineStore('music', () => {
   // --- 我喜欢 ---
   const likedSongs = ref([])
   const loadingLiked = ref(false)
+  const loadingMoreLiked = ref(false)
   const likedTotal = ref(0)
   const likedError = ref('')
+  const likedHasMore = ref(false)
+  const likedOffset = ref(0)
+  const LIKED_PAGE_SIZE = 50
 
   // --- 每日推荐 ---
   const dailySongs = ref([])
@@ -168,6 +173,15 @@ export const useMusicStore = defineStore('music', () => {
     } finally {
       fmPrefetching.value = false
     }
+  }
+
+  function startPrefetchedFm() {
+    if (!fmPrefetchSongs.value.length) return false
+    fmSongs.value = fmPrefetchSongs.value
+    fmPrefetchSongs.value = []
+    fmCurrentIndex.value = 0
+    fmError.value = ''
+    return true
   }
 
   async function fetchPersonalFm() {
@@ -246,6 +260,8 @@ export const useMusicStore = defineStore('music', () => {
         // 登录平台切换后，不能继续展示/播放上一个平台的推荐缓存。
         likedSongs.value = []
         likedTotal.value = 0
+        likedOffset.value = 0
+        likedHasMore.value = false
         dailySongs.value = []
         fmSongs.value = []
         fmPrefetchSongs.value = []
@@ -270,6 +286,8 @@ export const useMusicStore = defineStore('music', () => {
       likedSongs.value = []
       likedTotal.value = 0
       likedError.value = ''
+      likedOffset.value = 0
+      likedHasMore.value = false
     }
   })
 
@@ -361,28 +379,46 @@ export const useMusicStore = defineStore('music', () => {
     }
   }
 
-  async function fetchLikedSongs() {
-    if (loadingLiked.value || !platformLoggedIn.value) return
-    loadingLiked.value = true
-    likedError.value = ''
+  function normalizeLikedSongs(items) {
+    return (items || []).map(item => ({
+      id: `${item.source === 'qq' ? 'qq' : 'wy'}_${item.id}`,
+      name: item.name,
+      artist: item.artist,
+      album: item.album,
+      source: item.source || 'netease',
+      cover: item.cover,
+      _songId: item.id,
+    }))
+  }
+
+  async function fetchLikedSongs({ reset = true } = {}) {
+    if ((!reset && loadingMoreLiked.value) || (reset && loadingLiked.value) || !platformLoggedIn.value) return
+    if (reset) {
+      loadingLiked.value = true
+      likedError.value = ''
+      likedOffset.value = 0
+    } else {
+      loadingMoreLiked.value = true
+    }
     try {
-      const data = await musicApi.getLikedSongs()
-      likedSongs.value = (data.songs || []).map(item => ({
-        id: 'wy_' + item.id,
-        name: item.name,
-        artist: item.artist,
-        album: item.album,
-        source: item.source || 'netease',
-        cover: item.cover,
-        _songId: item.id,
-      }))
+      const offset = reset ? 0 : likedOffset.value
+      const data = await musicApi.getLikedSongs(LIKED_PAGE_SIZE, offset)
+      const songs = normalizeLikedSongs(data.songs)
+      likedSongs.value = reset ? songs : [...likedSongs.value, ...songs]
+      likedOffset.value = likedSongs.value.length
       likedTotal.value = data.total || 0
+      likedHasMore.value = likedOffset.value < likedTotal.value
     } catch {
-      likedSongs.value = []
+      if (reset) likedSongs.value = []
       likedError.value = '加载失败，请检查登录状态'
     } finally {
-      loadingLiked.value = false
+      if (reset) loadingLiked.value = false
+      else loadingMoreLiked.value = false
     }
+  }
+
+  function loadMoreLikedSongs() {
+    if (likedHasMore.value) return fetchLikedSongs({ reset: false })
   }
 
   async function fetchDailyRecommend() {
@@ -661,15 +697,15 @@ export const useMusicStore = defineStore('music', () => {
 
   return {
     playlist, currentIndex, isPlaying, currentTime, duration, volume,
-    activePlayback, fmIsPlaying, fmCurrentTime, fmDuration, setActivePlayback,
+    activePlayback, fmIsPlaying, fmCurrentTime, fmDuration, setActivePlayback, audioLoading,
     currentTrack, hasPrev, hasNext,
     searchResults, searching, searchError, loadingTrackIds,
     searchKeyword, searchOffset, searchHasMore, SEARCH_LIMIT,
     searchTracks, loadMoreResults, fetchRecommended, addSearchResultToPlaylist,
     recommendedSongs, loadingRecommended,
-    likedSongs, loadingLiked, likedTotal, likedError, fetchLikedSongs,
+    likedSongs, loadingLiked, loadingMoreLiked, likedTotal, likedError, likedHasMore, fetchLikedSongs, loadMoreLikedSongs,
     dailySongs, loadingDaily, dailyError, fetchDailyRecommend,
-    fmSongs, fmCurrentIndex, fmTrack, fmLoading, fmPrefetching, fmError, fetchPersonalFm, fmNext,
+    fmSongs, fmCurrentIndex, fmTrack, fmLoading, fmPrefetching, fmPrefetchSongs, fmError, fetchPersonalFm, prefetchFm, startPrefetchedFm, fmNext,
     lyrics, loadingLyric,
     fmLyrics, fmLoadingLyric, fetchFmLyric,
     showLoginPanel,

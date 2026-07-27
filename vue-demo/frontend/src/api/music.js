@@ -15,8 +15,8 @@ export function getDailyRecommend() {
   return get('/music/daily')
 }
 
-export function getLikedSongs() {
-  return get('/liked')
+export function getLikedSongs(limit = 50, offset = 0) {
+  return get('/liked', { limit: String(limit), offset: String(offset) })
 }
 
 export function refreshLikedSongs() {

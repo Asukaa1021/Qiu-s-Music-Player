@@ -23,6 +23,35 @@ const fmCurrentTime = ref(0)
 const fmDuration = ref(0)
 const fmAudioLoading = ref(false)
 let playSeq = 0
+const fmPreloaders = new Map()
+
+function getFmStreamUrl(track) {
+  if (!track?._songId) return ''
+  const src = track.source === 'qq'
+    ? `/api/music/multi-stream?source=qq&id=${encodeURIComponent(track._songId)}`
+    : `/api/music/stream?id=${track._songId}`
+  return new URL(src, window.location.origin).href
+}
+
+// 漫游下一首在当前歌曲播放时即开始下载，切歌时可直接复用浏览器缓存。
+function preloadNextFmTrack() {
+  const nextTrack = store.fmSongs[store.fmCurrentIndex + 1]
+  const nextSrc = getFmStreamUrl(nextTrack)
+  for (const [src, preloader] of fmPreloaders) {
+    if (src !== nextSrc) {
+      preloader.pause()
+      preloader.removeAttribute('src')
+      preloader.load()
+      fmPreloaders.delete(src)
+    }
+  }
+  if (!nextSrc || fmPreloaders.has(nextSrc)) return
+  const preloader = new Audio()
+  preloader.preload = 'auto'
+  preloader.src = nextSrc
+  preloader.load()
+  fmPreloaders.set(nextSrc, preloader)
+}
 
 // Web Audio 频谱
 let audioCtx = fmSession.audioCtx
@@ -62,6 +91,7 @@ watch(() => store.fmTrack, (track) => {
     if (track._songId && track.source !== 'qq') store.fetchFmLyric(track._songId)
     else store.fmLyrics = []
     nextTick(() => loadAndPlay())
+    preloadNextFmTrack()
   }
 })
 
@@ -71,7 +101,9 @@ async function initAudioContext() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)()
     fmSession.audioCtx = audioCtx
   }
-  if (audioCtx.state === 'suspended') await audioCtx.resume()
+  // 移动浏览器会在非用户手势中让 resume() 一直挂起；不能阻塞首曲的音频加载。
+  // 频谱可稍后恢复，音乐本身必须先能播放。
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
   if (!source && audioEl.value) {
     source = audioCtx.createMediaElementSource(audioEl.value)
     analyser = audioCtx.createAnalyser()
@@ -90,7 +122,26 @@ function updateFreqData() {
   freqData.value = data
 }
 
-async function loadAndPlay() {
+function waitForMetadata(el, seq) {
+  if (el.readyState >= HTMLMediaElement.HAVE_METADATA) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => finish(new Error('加载超时')), 12_000)
+    const onMeta = () => finish()
+    const onErr = () => finish(new Error('加载失败'))
+    const finish = (error) => {
+      clearTimeout(timeout)
+      el.removeEventListener('loadedmetadata', onMeta)
+      el.removeEventListener('error', onErr)
+      if (seq !== playSeq) return resolve()
+      if (error) reject(error)
+      else resolve()
+    }
+    el.addEventListener('loadedmetadata', onMeta, { once: true })
+    el.addEventListener('error', onErr, { once: true })
+  })
+}
+
+async function loadAndPlay(retry = 0) {
   const track = store.fmTrack
   if (!track) return
 
@@ -106,28 +157,16 @@ async function loadAndPlay() {
     const src = track.source === 'qq'
       ? `/api/music/multi-stream?source=qq&id=${encodeURIComponent(track._songId)}`
       : `/api/music/stream?id=${track._songId}`
-    if (audioEl.value.src !== src) {
-      audioEl.value.src = src
+    const nextSrc = new URL(src, window.location.origin).href
+    const sourceChanged = audioEl.value.src !== nextSrc
+    // 必须先订阅事件再调用 load()；首曲命中缓存时，事件可能在同一轮任务中触发。
+    const metadataReady = sourceChanged ? waitForMetadata(audioEl.value, seq) : Promise.resolve()
+    if (sourceChanged) {
+      audioEl.value.src = nextSrc
       audioEl.value.load()
     }
 
-    // 等待元数据加载完成
-    await new Promise((resolve, reject) => {
-      const onMeta = () => {
-        cleanup()
-        resolve()
-      }
-      const onErr = () => {
-        cleanup()
-        reject(new Error('加载失败'))
-      }
-      const cleanup = () => {
-        audioEl.value.removeEventListener('loadedmetadata', onMeta)
-        audioEl.value.removeEventListener('error', onErr)
-      }
-      audioEl.value.addEventListener('loadedmetadata', onMeta, { once: true })
-      audioEl.value.addEventListener('error', onErr, { once: true })
-    })
+    await metadataReady
 
     if (seq !== playSeq) return
 
@@ -139,7 +178,10 @@ async function loadAndPlay() {
     store.setActivePlayback('fm')
     fmDuration.value = audioEl.value.duration || 0
   } catch {
-    // 静默处理（包括浏览器 autoplay 策略）
+    // 首曲首次加载可能遇到网络/媒体初始化竞态，保留原曲并自动重试一次。
+    if (seq === playSeq && retry === 0) {
+      window.setTimeout(() => loadAndPlay(1), 450)
+    }
   } finally {
     if (seq === playSeq) fmAudioLoading.value = false
   }
@@ -415,7 +457,31 @@ onMounted(() => {
   window.addEventListener('melody:fm-next', onPersistentNext)
   window.addEventListener('melody:fm-seek', onPersistentSeek)
   window.addEventListener('melody:fm-stop', onPersistentStop)
-  if (store.platformLoggedIn && !store.fmTrack) {
+  if (store.platformLoggedIn && store.fmTrack) {
+    const track = store.fmTrack
+    if (track._songId && track.source !== 'qq') store.fetchFmLyric(track._songId)
+    const expectedSrc = new URL(track.source === 'qq'
+      ? `/api/music/multi-stream?source=qq&id=${encodeURIComponent(track._songId)}`
+      : `/api/music/stream?id=${track._songId}`, window.location.origin).href
+    const finishPrimedPlayback = () => {
+      if (store.fmTrack !== track) return
+      if (!audioEl.value.paused && audioEl.value.src === expectedSrc) {
+        fmPlaying.value = true
+        fmDuration.value = audioEl.value.duration || 0
+        store.setActivePlayback('fm')
+      } else {
+        loadAndPlay()
+      }
+    }
+    if (fmSession.playPromise) {
+      fmSession.playPromise.finally(() => {
+        fmSession.playPromise = null
+        finishPrimedPlayback()
+      })
+    } else {
+      finishPrimedPlayback()
+    }
+  } else if (store.platformLoggedIn) {
     store.fetchPersonalFm()
   }
 })

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useMusicStore } from '../stores/music'
 import MusicPlayer from '../components/MusicPlayer.vue'
 import SearchSection from '../components/SearchSection.vue'
@@ -8,6 +8,7 @@ import PersonalRadio from '../components/PersonalRadio.vue'
 
 const store = useMusicStore()
 const route = useRoute()
+const router = useRouter()
 
 const currentView = computed(() => route.query.view || 'continue')
 
@@ -16,8 +17,16 @@ const addedIds = ref(new Set())
 const addAllAnimating = ref(false)
 const dailyFlippingId = ref('')
 let toastTimer = null
+let navigatingHome = false
 
 onUnmounted(() => { clearTimeout(toastTimer) })
+
+function goHome() {
+  if (navigatingHome) return
+  navigatingHome = true
+  router.push('/home')
+  window.setTimeout(() => { navigatingHome = false }, 350)
+}
 
 function showToast(song) {
   const title = song.name?.length > 20 ? song.name.slice(0, 20) + '...' : song.name
@@ -161,12 +170,12 @@ const viewIcon = computed(() => ({
 
     <!-- 返回按钮 + 标题 -->
     <div class="top-row">
-      <router-link to="/home" class="back-btn" aria-label="返回首页">
+      <button class="back-btn" type="button" aria-label="返回首页" @pointerdown.prevent.stop="goHome" @click.prevent.stop="goHome">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
         <span>首页</span>
-      </router-link>
+      </button>
       <span class="top-title">{{ viewTitle }}</span>
     </div>
 
@@ -196,6 +205,15 @@ const viewIcon = computed(() => ({
         </ul>
         <div v-else-if="store.likedError" class="view-status view-status--error">{{ store.likedError }}</div>
         <div v-else class="view-status">暂无喜欢的歌曲</div>
+        <button
+          v-if="store.likedSongs.length && store.likedHasMore"
+          class="load-more-liked glass-btn"
+          :disabled="store.loadingMoreLiked"
+          @click="store.loadMoreLikedSongs"
+        >
+          <span v-if="store.loadingMoreLiked" class="spinner"></span>
+          <span v-else>加载更多（{{ Math.min(50, store.likedTotal - store.likedSongs.length) }} 首）</span>
+        </button>
       </div>
     </div>
 
@@ -311,7 +329,7 @@ const viewIcon = computed(() => ({
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 16px 24px 24px;
+  padding: 70px 24px 24px;
   overflow: hidden;
 }
 
@@ -353,8 +371,11 @@ const viewIcon = computed(() => ({
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 16px;
-  flex-shrink: 0;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 2001;
+  pointer-events: auto;
 }
 .back-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -365,6 +386,7 @@ const viewIcon = computed(() => ({
   font-size: 12px; font-weight: 500; letter-spacing: 0.03em;
   cursor: pointer; transition: all 220ms var(--ease-out);
   flex-shrink: 0;
+  touch-action: manipulation;
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
 .back-btn svg { width: 14px; height: 14px; }
@@ -434,6 +456,7 @@ const viewIcon = computed(() => ({
 .view-scroll::-webkit-scrollbar { width: 4px; }
 .view-scroll::-webkit-scrollbar-track { background: transparent; }
 .view-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 10px; }
+.load-more-liked { align-self: center; margin: 10px 0 16px; padding: 8px 16px; color: var(--accent); font-size: 11px; }
 
 .view-status {
   text-align: center; padding: 48px 0; font-size: 12px; color: var(--muted);
@@ -640,7 +663,20 @@ const viewIcon = computed(() => ({
 .playlist-empty-sub { font-size: 10px; color: var(--muted); }
 
 @media (max-width: 900px) {
+  .player-page { min-height: 100dvh; overflow-y: auto; overflow-x: hidden; padding: calc(64px + env(safe-area-inset-top)) 14px 112px; -webkit-overflow-scrolling: touch; }
   .layout-continue { flex-direction: column; }
   .side-col { width: 100%; max-height: none; }
+}
+
+@media (max-width: 420px) {
+  .top-title { display: none; }
+  .top-row { left: max(12px, env(safe-area-inset-left)); }
+  .back-btn { padding: 7px 13px; background: rgba(8, 11, 15, .84); }
+}
+
+@media (max-height: 560px) {
+  .player-page { padding-top: 58px; }
+  .top-row { top: max(8px, env(safe-area-inset-top)); }
+  .back-btn { padding: 5px 12px; }
 }
 </style>

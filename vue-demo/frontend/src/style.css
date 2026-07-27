@@ -150,3 +150,9 @@ a:focus-visible {
 .splash-fade-leave-active { transition: opacity 0.5s var(--ease-out); }
 .splash-fade-enter-from,
 .splash-fade-leave-to { opacity: 0; }
+
+/* 触屏设备使用页面滚动，避免固定高度布局吞掉上下滑动手势。 */
+@media (hover: none), (max-width: 900px) {
+  html, body { width: 100%; min-height: 100%; height: auto; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; }
+  #app { width: 100%; min-height: 100dvh; height: auto; overflow-x: clip; }
+}

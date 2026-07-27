@@ -75,8 +75,9 @@ function openPlayer() {
       </div>
 
       <div class="mini-controls">
-        <button class="mini-btn mini-btn--play" @click="toggle" :aria-label="playing ? '暂停' : '播放'">
-          <svg v-if="playing" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+        <button class="mini-btn mini-btn--play" :class="{ 'mini-btn--loading': store.audioLoading && !isFm }" :disabled="store.audioLoading && !isFm" @click="toggle" :aria-label="store.audioLoading && !isFm ? '歌曲加载中' : playing ? '暂停' : '播放'">
+          <svg v-if="store.audioLoading && !isFm" class="mini-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8" opacity=".25"/><path d="M12 4a8 8 0 0 1 8 8" stroke-linecap="round"/></svg>
+          <svg v-else-if="playing" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
           <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </button>
         <button class="mini-btn" @click="next" aria-label="下一首">
@@ -101,6 +102,7 @@ function openPlayer() {
 .mini-lyric { margin-top: 5px; color: var(--accent); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.mini-lyric small { margin-left: 8px; color: rgba(232,236,239,.48); font-size: 10px; }.mini-lyric.muted { color: rgba(232,236,239,.35); }
 .mini-progress { display: grid; grid-template-columns: 34px minmax(60px,1fr) 34px; gap: 7px; align-items: center; margin-top: 7px; color: var(--muted); font: 9px var(--font-mono); }.mini-progress input, .mini-volume input { width: 100%; accent-color: var(--accent); cursor: pointer; height: 3px; }
 .mini-controls { display: flex; gap: 6px; }.mini-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: 50%; background: rgba(255,255,255,.04); color: var(--ink-2); cursor: pointer; transition: .2s ease; }.mini-btn:hover { color: var(--accent); border-color: rgba(0,245,212,.35); }.mini-btn svg { width: 15px; height: 15px; }.mini-btn--play { width: 40px; height: 40px; color: #071111; background: var(--accent); border-color: var(--accent); }.mini-btn--play:hover { color: #071111; transform: scale(1.05); }
+.mini-btn--loading { cursor: wait; opacity: .9; }.mini-spinner { animation: mini-spinner-rotate .82s linear infinite; } @keyframes mini-spinner-rotate { to { transform: rotate(360deg); } }
 .mini-volume { width: 142px; display: grid; grid-template-columns: 16px 1fr 24px; gap: 7px; align-items: center; color: var(--muted); font: 10px var(--font-mono); }.mini-volume svg { width: 16px; height: 16px; }
 .persistent-player-enter-active, .persistent-player-leave-active { transition: opacity .25s var(--ease-out), transform .25s var(--ease-out); }.persistent-player-enter-from, .persistent-player-leave-to { opacity: 0; transform: translate(-50%, 18px); }
 @media (max-width: 680px) { .persistent-player { gap: 10px; bottom: 12px; padding-right: 10px; min-height: 76px; }.mini-cover { width: 58px; height: 58px; border-radius: 13px; }.mini-cover svg { margin-top: 15px; }.mini-volume { display: none; }.mini-lyric { display: none; }.mini-controls { gap: 3px; }.mini-progress { margin-top: 6px; } }

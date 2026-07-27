@@ -109,7 +109,9 @@ router.get('/stream', async (req, res) => {
 
     const cookie = cookieStore.getCookie(req.ip)
 
-    const levels = reqLevel ? [reqLevel] : ['lossless', 'exhigh', 'higher', 'standard']
+    // 无损文件体积很大，在移动网络或性能较弱的设备上容易出现持续缓冲。
+    // 默认优先使用高码率 AAC/MP3，用户显式传入 level 时仍可请求指定音质。
+    const levels = reqLevel ? [reqLevel] : ['exhigh', 'higher', 'standard']
     let audioUrl = null
     let usedLevel = ''
 
@@ -159,7 +161,9 @@ router.get('/stream', async (req, res) => {
         if (resHeaders[h]) res.setHeader(h, resHeaders[h])
       }
       if (!resHeaders['accept-ranges']) res.setHeader('Accept-Ranges', 'bytes')
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      // 音频按歌曲 ID 路由，允许浏览器短期缓存 range 分段；这样预加载的下一首
+      // 可以直接被正式播放器复用，不必再向上游重新拉取。
+      res.setHeader('Cache-Control', 'public, max-age=21600, immutable')
       res.setHeader('Access-Control-Allow-Origin', '*')
 
       if (statusCode !== 206 && statusCode !== 200) {

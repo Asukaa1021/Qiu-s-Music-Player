@@ -5,6 +5,7 @@ import { useMusicStore } from '../stores/music'
 const store = useMusicStore()
 const visible = ref(false)
 const lyricsRef = ref(null)
+const supportsScreenSaver = ref(false)
 let idleTimer = null
 
 const isFm = computed(() => store.activePlayback === 'fm' && !!store.fmTrack)
@@ -35,7 +36,8 @@ function clearIdleTimer() {
 
 function armIdleTimer() {
   clearIdleTimer()
-  if (!track.value || !playing.value) return
+  // 触屏设备没有稳定的“鼠标空闲”语义；全屏遮罩会吞掉用户第一次返回操作。
+  if (!supportsScreenSaver.value || !track.value || !playing.value) return
   idleTimer = setTimeout(() => { visible.value = true }, 30_000)
 }
 
@@ -70,6 +72,7 @@ watch(visible, (isVisible) => {
 })
 
 onMounted(() => {
+  supportsScreenSaver.value = window.matchMedia('(hover: hover) and (pointer: fine)').matches
   for (const event of ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel']) {
     window.addEventListener(event, onUserActivity, { passive: true })
   }

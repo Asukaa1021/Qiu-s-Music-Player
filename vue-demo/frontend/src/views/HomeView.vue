@@ -32,6 +32,10 @@ onMounted(async () => {
   if (store.platformLoggedIn && store.likedSongs.length === 0) {
     store.fetchLikedSongs()
   }
+  // 预取首批漫游曲目；用户点击卡片时即可在同一个手势内启动音频。
+  if (store.platformLoggedIn && !store.fmTrack && !store.fmPrefetchSongs.length) {
+    store.prefetchFm()
+  }
   document.addEventListener('click', onClickOutside)
 })
 
@@ -87,6 +91,28 @@ function onCardClick(view) {
     return
   }
   router.push({ path: '/player', query: { view } })
+}
+
+function primeRadioPlayback() {
+  if (!store.platformLoggedIn) return
+  if (!store.fmTrack) store.startPrefetchedFm()
+  const track = store.fmTrack
+  if (!track?._songId) return
+
+  const session = window.__melodyFmSession || (window.__melodyFmSession = { audio: new Audio(), audioCtx: null, analyser: null, source: null })
+  const src = track.source === 'qq'
+    ? `/api/music/multi-stream?source=qq&id=${encodeURIComponent(track._songId)}`
+    : `/api/music/stream?id=${track._songId}`
+  const url = new URL(src, window.location.origin).href
+  session.audio.preload = 'auto'
+  session.audio.crossOrigin = 'anonymous'
+  session.audio.volume = store.volume
+  if (session.audio.src !== url) {
+    session.audio.src = url
+    session.audio.load()
+  }
+  // 必须在 pointerdown 的用户手势内调用 play，移动浏览器才允许首曲自动续播。
+  session.playPromise = session.audio.play().catch(() => null)
 }
 
 async function addToPlaylist(song) {
@@ -264,7 +290,7 @@ async function addToPlaylist(song) {
       </div>
 
       <!-- 私人漫游 -->
-      <div class="home-card" data-tone="radio" @click="onCardClick('radio')">
+      <div class="home-card" data-tone="radio" @pointerdown="primeRadioPlayback" @click="onCardClick('radio')">
         <div class="card-accent card-accent--gold"></div>
         <div class="card-body">
           <div class="card-icon card-icon--radio">

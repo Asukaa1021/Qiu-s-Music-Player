@@ -98,7 +98,7 @@ async function getRecommended() {
   return result.body
 }
 
-async function getLikedSongs(cookie) {
+async function getLikedSongs(cookie, { offset = 0, limit } = {}) {
   // 1. 获取登录状态及 uid
   const status = await login_status({ cookie })
   const data = status.body?.data
@@ -124,11 +124,13 @@ async function getLikedSongs(cookie) {
   // likelist 返回从旧到新排序，反转使最新喜欢在前
   ids.reverse()
 
+  const selectedIds = Number.isFinite(limit) ? ids.slice(offset, offset + limit) : ids
+
   // 3. 分批获取歌曲详情（每批 500 个，并行请求）
   const BATCH = 500
   const batches = []
-  for (let i = 0; i < ids.length; i += BATCH) {
-    batches.push(ids.slice(i, i + BATCH))
+  for (let i = 0; i < selectedIds.length; i += BATCH) {
+    batches.push(selectedIds.slice(i, i + BATCH))
   }
 
   const detailResults = await Promise.all(
@@ -151,7 +153,7 @@ async function getLikedSongs(cookie) {
   }
 
   // 按 likelist 顺序输出（最新喜欢在前）
-  const songs = ids.map(id => songMap[id]).filter(Boolean)
+  const songs = selectedIds.map(id => songMap[id]).filter(Boolean)
   console.log('[getLikedSongs] 最终歌曲数:', songs.length)
 
   return { songs, total: ids.length }

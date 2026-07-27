@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useMusicStore } from '../stores/music'
 
 const store = useMusicStore()
@@ -8,6 +8,8 @@ const incoming = ref(null)
 const outgoing = ref(null)
 const direction = ref('next')
 const palette = ref({ accent: '#8eeaff', accentSoft: 'rgba(142, 234, 255, .28)' })
+const compactMode = ref(false)
+const skipAnimation = ref(false)
 let hideTimer = null
 
 const activeTrack = computed(() =>
@@ -20,6 +22,7 @@ const activePosition = computed(() =>
 
 function setPalette(track) {
   const fallback = { accent: '#8eeaff', accentSoft: 'rgba(142, 234, 255, .28)' }
+  if (compactMode.value) { palette.value = fallback; return }
   if (!track?.cover) { palette.value = fallback; return }
 
   const image = new Image()
@@ -81,11 +84,18 @@ watch(activeKey, () => {
 }, { immediate: true, flush: 'post' })
 
 onBeforeUnmount(() => clearTimeout(hideTimer))
+onMounted(() => {
+  const lowCoreDevice = typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4
+  const lowMemoryDevice = typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 4
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  skipAnimation.value = lowCoreDevice || lowMemoryDevice || reducedMotion
+  compactMode.value = !skipAnimation.value && window.matchMedia('(max-width: 900px), (hover: none)').matches
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="visible && incoming" class="track-switch" :class="`track-switch--${direction}`" :style="{ '--accent': palette.accent, '--accent-soft': palette.accentSoft }" aria-hidden="true">
+    <div v-if="visible && incoming && !skipAnimation" class="track-switch" :class="[`track-switch--${direction}`, { 'track-switch--compact': compactMode }]" :style="{ '--accent': palette.accent, '--accent-soft': palette.accentSoft }" aria-hidden="true">
       <div class="track-switch__wash" :style="{ backgroundImage: `url(${incoming.cover || ''})` }" />
       <div class="track-switch__glow track-switch__glow--one" />
       <div class="track-switch__glow track-switch__glow--two" />
@@ -125,6 +135,8 @@ onBeforeUnmount(() => clearTimeout(hideTimer))
 .track-switch__meta strong { max-width: min(36vw, 420px); font-size: clamp(18px, 2.3vw, 32px); letter-spacing: .025em; }
 .track-switch__meta small { margin-top: 8px; max-width: min(32vw, 350px); color: rgba(255,255,255,.7); font-size: 14px; }
 .track-switch__line { position: absolute; top: calc(50% + clamp(72px, 10vw, 140px)); left: 50%; width: min(50vw, 570px); height: 2px; transform-origin: left; background: linear-gradient(90deg, var(--accent), rgba(255,255,255,0)); box-shadow: 0 0 12px var(--accent); animation: line-in .95s .08s ease-out both; }
+.track-switch--compact { background: rgba(8, 11, 18, .32); }.track-switch--compact .track-switch__wash, .track-switch--compact .track-switch__glow, .track-switch--compact .track-switch__line, .track-switch--compact .track-switch__meta, .track-switch--compact .track-card--out { display: none; }.track-switch--compact .track-card { width: 104px; box-shadow: 0 12px 32px rgba(0,0,0,.36); animation: compact-card .42s ease-out both; }.track-switch--compact::after { background: rgba(8,11,18,.34); animation: none; }
+@keyframes compact-card { from { opacity: 0; transform: translate(-50%, -42%) scale(.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 .track-switch__glow { position: absolute; left: 50%; top: 50%; width: 42vw; height: 2px; opacity: 0; transform-origin: left; background: linear-gradient(90deg, transparent, var(--accent), transparent); box-shadow: 0 0 24px var(--accent-soft); filter: blur(1px); }
 .track-switch__glow--one { animation: streak 1s .05s ease-out both; }
 .track-switch__glow--two { animation: streak .8s .2s ease-out both; transform: rotate(-17deg); }

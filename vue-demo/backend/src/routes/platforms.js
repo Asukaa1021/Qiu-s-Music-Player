@@ -2,6 +2,7 @@ const { Router } = require('express')
 const { success, fail } = require('../utils/response')
 const cookieStore = require('../utils/cookieStore')
 const { getLoginStatus } = require('../services/netease')
+const { clearLikedCache, refreshQqLikedInBackground } = require('../services/likedCache')
 
 const QQ_BRIDGE = 'http://127.0.0.1:3401'
 
@@ -59,7 +60,11 @@ router.post('/qq/qr/check', async (req, res) => {
     const { sessionId } = req.body || {}
     if (!sessionId) return fail(res, 400, '缺少 QQ 二维码会话')
     const body = await bridge(`/qr/${encodeURIComponent(sessionId)}`)
-    if (body.status === 'done' && body.credential) cookieStore.setQqCredential(req.ip, body.credential)
+    if (body.status === 'done' && body.credential) {
+      cookieStore.setQqCredential(req.ip, body.credential)
+      clearLikedCache(req.ip)
+      refreshQqLikedInBackground(req)
+    }
     success(res, { ...body, loggedIn: body.status === 'done', accounts: accountSummary(req.ip).accounts })
   } catch (error) { fail(res, 502, error.message || 'QQ 登录检查失败') }
 })

@@ -226,8 +226,9 @@ function scrollToLyric(idx) {
       <button class="ctrl-btn" :disabled="!store.hasPrev" @click="store.prev()" aria-label="上一首">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
       </button>
-      <button class="ctrl-btn ctrl-btn--play" @click="togglePlay()" :aria-label="store.isPlaying ? '暂停' : '播放'">
-        <svg v-if="!store.isPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <button class="ctrl-btn ctrl-btn--play" :class="{ 'ctrl-btn--loading': store.audioLoading }" :disabled="store.audioLoading" @click="togglePlay()" :aria-label="store.audioLoading ? '歌曲加载中' : store.isPlaying ? '暂停' : '播放'">
+        <svg v-if="store.audioLoading" class="play-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="8" opacity=".22"/><path d="M12 4a8 8 0 0 1 8 8" stroke-linecap="round"/></svg>
+        <svg v-else-if="!store.isPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         <svg v-else viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
       </button>
       <button class="ctrl-btn" :disabled="!store.hasNext" @click="store.next()" aria-label="下一首">
@@ -427,6 +428,7 @@ function scrollToLyric(idx) {
   box-shadow: 0 0 24px rgba(0, 245, 212, 0.15);
 }
 .ctrl-btn--play svg { width: 20px; height: 20px; }
+.ctrl-btn--loading { cursor: wait; opacity: .9 !important; }.play-spinner { animation: play-spinner-rotate .82s linear infinite; } @keyframes play-spinner-rotate { to { transform: rotate(360deg); } }
 
 /* ==================== Progress ==================== */
 .progress-row {
